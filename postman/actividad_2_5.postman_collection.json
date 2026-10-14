@@ -1,0 +1,214 @@
+{
+  "info": {
+    "name": "Actividad 2.5 — APIs para IoT en entorno Dev",
+    "description": "Tres escenarios locales. Lee README.md. Token vacío: configúralo personalmente como variable local sensible. Crea dos pestañas WebSocket manuales con Authorization Bearer. En escenario 3 espera demo_finalizada antes del GET posterior. No publiques secretos ni exportes sus valores.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{control_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "id_vehiculo",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "id_comando",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "id_demo",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "control_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. POST movimiento individual",
+      "item": [
+        {
+          "name": "1.1 Registrar movimiento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/vehiculos/{{id_vehiculo}}/movimientos",
+            "description": "Conecta dos WebSocket al vehículo antes del POST y verifica que ambos reciben el mismo evento. El ID se toma del catálogo; no se infiere del código.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_comando\": {{id_comando}},\n  \"origen\": \"Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Movimiento lógico confirmado\", () => { const e=pm.response.json(); pm.expect(e.tipo).to.eql(\"movimiento_individual\"); pm.expect(e.id_comando).to.eql(Number(pm.variables.get(\"id_comando\"))); pm.expect(e.ejecucion_fisica_confirmada).to.eql(false); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. GET historial (máximo diez)",
+      "item": [
+        {
+          "name": "2.1 Consultar historial",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/vehiculos/{{id_vehiculo}}/historial?limite=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Máximo diez elementos\", () => { const rows=pm.response.json(); pm.expect(rows).to.be.an(\"array\"); pm.expect(rows.length).to.be.at.most(10); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. WebSocket DEMO e historial sin cambios",
+      "item": [
+        {
+          "name": "3.1 Historial antes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/vehiculos/{{id_vehiculo}}/historial?limite=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Máximo diez elementos\", () => { const rows=pm.response.json(); pm.expect(rows).to.be.an(\"array\"); pm.expect(rows.length).to.be.at.most(10); });",
+                  "if (pm.response.code === 200) pm.collectionVariables.set(\"historial_antes\", JSON.stringify(pm.response.json()));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.2 Iniciar DEMO",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/vehiculos/{{id_vehiculo}}/demos",
+            "description": "Observa demo_iniciada, cada paso y demo_finalizada en los dos WebSocket. Espera el evento final antes de la solicitud 3.3.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_demo\": {{id_demo}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 202\", () => pm.response.to.have.status(202));",
+                  "pm.test(\"DEMO iniciada\", () => pm.expect(pm.response.json().tipo).to.eql(\"demo_iniciada\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.3 Historial después (esperar demo_finalizada)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/vehiculos/{{id_vehiculo}}/historial?limite=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Máximo diez elementos\", () => { const rows=pm.response.json(); pm.expect(rows).to.be.an(\"array\"); pm.expect(rows.length).to.be.at.most(10); });",
+                  "pm.test(\"Historial idéntico al anterior\", () => { const before=pm.collectionVariables.get(\"historial_antes\"); pm.expect(before, \"Ejecuta primero 3.1\").to.be.a(\"string\"); pm.expect(pm.response.json()).to.deep.eql(JSON.parse(before)); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.4 Cancelar DEMO (auxiliar; reiniciar antes)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/vehiculos/{{id_vehiculo}}/demos/activa",
+            "description": "Después de la evidencia de finalización, inicia otra DEMO con 3.2 y cancélala aquí. No habrá movimientos posteriores de esa ejecución. No se envía un comando físico de parada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Cancelación terminada\", () => pm.expect(pm.response.json().tipo).to.eql(\"demo_cancelada\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

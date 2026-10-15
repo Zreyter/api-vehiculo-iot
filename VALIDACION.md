@@ -54,6 +54,6 @@ python scripts/diagnosticar_mysql.py
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-Consulta `docs/ADMINISTRACION.md` antes de ejecutar la colección auxiliar. Los entregables siguen siendo únicamente los tres escenarios originales. La aceptación de Postman en lugar de Thunder Client sigue pendiente del profesor.
+Consulta `docs/ADMINISTRACION.md` antes de ejecutar la colección auxiliar. Los tres escenarios originales documentan la validación inicial del control; el CRUD completa la comprobación del conjunto. Según la aclaración del alcance final, estas mismas APIs se ejecutarán en EC2 y se conectarán a RDS después de validar su funcionamiento local. Ese despliegue sigue pendiente. La aceptación de Postman en lugar de Thunder Client sigue pendiente del profesor.
 
 No se cambió el esquema ni se leyeron/imprimieron contraseñas en las salidas. No se modificó `.env`, no se crearon recursos AWS ni se desplegó la API públicamente. Esta ampliación queda local y no se subió automáticamente a GitHub.

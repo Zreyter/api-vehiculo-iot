@@ -1,170 +1,274 @@
-# Actividad 2.5 — APIs para IoT en entorno Dev
+# API de vehículo IoT
 
-Laboratorio con FastAPI, MySQL local y WebSocket. Integra los 21 procedimientos: administración de vehículos, comandos, DEMO y sus movimientos, además de movimiento individual, historial y ejecución DEMO con inicio/cancelación. El código utiliza las firmas confirmadas en los CSV; no crea ni modifica el esquema MySQL.
+API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehículo IoT, registrar movimientos individuales y transmitir secuencias DEMO. El proyecto corresponde a la actividad **2.5: APIs para IoT en entorno Dev** e integra **21 procedimientos almacenados** mediante **22 operaciones HTTP** y un canal WebSocket por vehículo.
 
-## Preparación y ejecución local
+**El entregable final será esta misma API ejecutándose en una instancia Amazon EC2 y conectándose desde esa instancia a MySQL en Amazon RDS.** Primero se comprueba su funcionamiento con MySQL local; después se configura y valida el despliegue en AWS.
 
-Si acabas de clonar el repositorio, prepara tu propio entorno y configuración desde la raíz del proyecto:
+## Alcance y etapas
+
+| Etapa | Qué se realiza | Estado documentado |
+| --- | --- | --- |
+| Desarrollo local | Implementar las APIs y conectarlas a MySQL local | Implementado |
+| Validación local | Comprobar movimientos, historial, DEMO y administración con la base real | Tres escenarios iniciales confirmados; completar la comprobación manual del CRUD |
+| Entrega en AWS | Ejecutar estas mismas APIs en EC2 y usar RDS como base de datos | Pendiente, después de la validación local |
+
+La API permite:
+
+- Crear, consultar, actualizar y eliminar vehículos, comandos y definiciones DEMO.
+- Agregar, consultar, actualizar y eliminar pasos de una DEMO.
+- Registrar un movimiento individual, actualizando estado e historial en una transacción.
+- Consultar un máximo de diez registros recientes del historial.
+- Iniciar o cancelar una DEMO y transmitir sus eventos a varios clientes WebSocket.
+
+Los eventos representan operaciones de software y cambios confirmados en la base de datos. **Todavía no confirman que el ESP8266 o el vehículo hayan ejecutado un movimiento físico.**
+
+### Versiones del repositorio
+
+| Etiqueta Git | Alcance |
+| --- | --- |
+| `v1.1` | Movimiento individual, historial y WebSocket DEMO con inicio/cancelación |
+| `v1.2` | Integración de los 21 SP y operaciones de administración |
+
+## Requisitos para ejecutar localmente
+
+- Python 3.12 o 3.13 y un entorno virtual creado en la computadora donde se ejecutará la API.
+- MySQL local con el esquema `vehiculo_iot`, sus seis tablas y los 21 SP instalados.
+- Un usuario MySQL con los permisos de lectura y ejecución necesarios, además de permisos sobre los datos que modifican los SP.
+- Postman de escritorio u otro cliente HTTP/WebSocket para las pruebas.
+
+Las tablas esperadas son `vehiculos`, `comandos`, `estado_vehiculo`, `historial_comandos`, `demos` y `demo_movimientos`. Las escrituras requieren un motor transaccional como InnoDB. El estado requiere una clave única por `id_vehiculo` para el upsert existente.
+
+**La aplicación no crea automáticamente la base, las tablas ni los SP.** Deben prepararse o importarse previamente. Los CSV de `docs/` documentan las firmas y definiciones exportadas de MySQL; no son un script de instalación del esquema completo.
+
+## Instalación y configuración local
+
+### 1. Obtener el proyecto e instalar dependencias
+
+Desde una terminal de Linux:
 
 ```bash
+git clone https://github.com/Zreyter/api-vehiculo-iot.git
+cd api-vehiculo-iot
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements.txt
+```
+
+Si el proyecto y su entorno ya existen, abre la carpeta y activa `.venv`; no es necesario volver a clonarlos. En VS Code selecciona `.venv/bin/python` mediante **Python: Select Interpreter**. Los entornos virtuales no se comparten por Git y deben instalarse en cada computadora o instancia.
+
+### 2. Crear la configuración privada
+
+Solo para una instalación nueva, cuando todavía no exista `.env`:
+
+```bash
 cp .env.example .env
 chmod 600 .env
 python -c "import secrets; from dotenv import set_key; set_key('.env', 'CONTROL_TOKEN', secrets.token_urlsafe(32))"
-```
-
-Estos pasos son para una copia nueva: no reemplaces un `.env` existente. El repositorio incluye solo `.env.example`; la contraseña, el token y los entornos virtuales se quedan en cada computadora. Después configura personalmente la contraseña como se indica abajo.
-
-Desde VS Code abre esta carpeta y selecciona **Python: Select Interpreter → Enter interpreter path → `.venv/bin/python`**. Tu terminal ya comprobó que el entorno original `.venv` funciona; úsalo para ejecutar el proyecto. `.venv-lab` se utilizó únicamente para verificar desde la sesión de Codex con otro Python y no es necesario activarlo en tu terminal.
-
-```bash
-source .venv/bin/activate
-python --version
-python -m pip --version
-```
-
-Para instalar o actualizar dependencias usa `python -m pip install -r requirements.txt`; para ejecutar las pruebas usa `requirements-dev.txt`, que agrega el cliente de pruebas.
-
-`.env` es tu configuración privada. Conserva los valores de MySQL y `CONTROL_TOKEN` que ya usaste en las pruebas. Si falta la contraseña, introdúcela personalmente con el asistente; no es necesario volver a configurarla si ya funciona:
-
-```bash
 python scripts/configurar_password.py
 ```
 
-Comprueba MySQL e inicia la API desde la raíz del proyecto:
+El último comando solicita la contraseña MySQL sin mostrarla en pantalla. Si `.env` ya está configurado, conserva sus valores y omite estos pasos.
+
+| Variable | Uso | Valor local de referencia |
+| --- | --- | --- |
+| `MYSQL_HOST` | Servidor de base de datos | `127.0.0.1` |
+| `MYSQL_PORT` | Puerto de MySQL | `3306` |
+| `MYSQL_USER` | Usuario de la base | Usuario configurado en MySQL; la plantilla usa `admin` |
+| `MYSQL_PASSWORD` | Contraseña de ese usuario | Configurar personalmente |
+| `MYSQL_DATABASE` | Nombre del esquema | `vehiculo_iot` |
+| `CONTROL_TOKEN` | Clave de acceso a los controles de la API | Valor aleatorio generado localmente |
+
+`.env` contiene la configuración real y está excluido de Git. `.env.example` es la plantilla sin secretos que se incluye en el repositorio. No compartas contraseñas o tokens en capturas ni exportaciones de Postman. Reinicia la API si cambias la configuración.
+
+### 3. Comprobar la base e iniciar la API
+
+Desde la raíz del proyecto, con el entorno activado:
 
 ```bash
 python scripts/diagnosticar_mysql.py
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-Para una copia nueva usa `.env.example` como base y define personalmente `MYSQL_PASSWORD` y un `CONTROL_TOKEN` aleatorio. No reemplaces tu `.env` existente. Reinicia la API después de cambiarlo. Swagger: <http://localhost:8000/docs>. Usa **Authorize → HTTPBearer** e introduce solo el token local. El token se consulta personalmente en `.env`; no lo copies a capturas, chats, repositorios ni exportaciones compartidas.
+El diagnóstico es de solo lectura: comprueba las 21 firmas y sus tipos, motores de tablas, clave única del estado, control transaccional interno y reglas de llaves foráneas. También consulta el vehículo y la DEMO de referencia con ID 1; adapta esos datos de referencia si usas otra base de laboratorio. No modifica el esquema ni los registros.
 
-La aplicación arranca aunque falte la contraseña: Swagger sigue disponible y las operaciones que requieren MySQL responden `503`. Una configuración de token vacía también bloquea los controles con `503`. No se usa `conectado=1` por iniciar la API o abrir un WebSocket.
+Mantén abierta la terminal del servidor. La documentación interactiva está en **[http://localhost:8000/docs](http://localhost:8000/docs)** y el contrato OpenAPI en [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json). Detén el servidor con **Ctrl+C**.
 
-Usa **un solo proceso** y una sola instancia de la API para esta base. Las salas, colas y exclusión de DEMO están en memoria. Varios procesos requerirían coordinación compartida antes de utilizarlos. Puedes añadir `--reload` para editar, sabiendo que una recarga cancela la DEMO en curso. No publiques la API ni cambies el enlace a `0.0.0.0` para este laboratorio.
+Usa **un solo proceso** de la API: la coordinación de DEMO y las salas WebSocket están en memoria. Durante desarrollo puede añadirse `--reload`, pero cada recarga interrumpe las conexiones y ejecuciones en curso. La configuración local anterior escucha únicamente en la computadora de desarrollo.
 
-## Organización y POO
+## Autenticación
+
+El token de control y la contraseña MySQL tienen funciones diferentes: el token autentica al cliente de la API; la contraseña permite a la aplicación conectarse a la base.
+
+Requieren token los controles de movimiento/DEMO, el WebSocket y **todas las rutas `/admin`, incluidas las consultas**. El GET de historial local no exige token.
+
+- **Swagger:** pulsa **Authorize** e introduce solamente el valor de `CONTROL_TOKEN`.
+- **Postman HTTP:** en **Authorization → Bearer Token**, introduce solamente el token.
+- **Postman WebSocket:** en **Headers**, agrega `Authorization` con el valor completo `Bearer TU_TOKEN`, dejando un espacio después de `Bearer`.
+
+Si no está configurada la contraseña, las operaciones que necesitan MySQL responden `503`; Swagger puede seguir disponible. Si el token de la API está vacío, los controles también responden `503`.
+
+## Operaciones de movimiento, historial y ejecución DEMO
+
+Los IDs de la tabla son ejemplos del laboratorio. Consulta los catálogos administrativos para conocer los IDs reales de tu base.
+
+| Método | Ruta de ejemplo | Cuerpo / consulta | Resultado esperado |
+| --- | --- | --- | --- |
+| POST | `/vehiculos/1/movimientos` | `{"id_comando":2,"origen":"Postman"}` | `200`, estado e historial confirmados y evento de movimiento |
+| GET | `/vehiculos/1/historial?limite=10` | `limite` entre 1 y 10 | `200`, hasta diez registros recientes |
+| POST | `/vehiculos/1/demos` | `{"id_demo":1}` | `202`, ejecución DEMO iniciada |
+| DELETE | `/vehiculos/1/demos/activa` | Sin cuerpo | `200`, cancelación terminada |
+
+El movimiento individual valida vehículo y comando activos y relacionados. Actualiza estado e historial en la misma transacción y confirma antes de publicar el evento. El código del comando se toma de MySQL; no se deduce de su ID.
+
+La DEMO lee su secuencia de MySQL en cada inicio, respeta orden, duración y pausa mediante esperas asíncronas, y actualiza estado **sin registrar historial**. Solo puede existir una ejecución por vehículo. Mientras está activa, se rechazan los movimientos individuales y las modificaciones administrativas de ese vehículo con `409`.
+
+`conectado` conserva su valor existente; si no había estado, se inicializa en 0. Una petición HTTP o una conexión WebSocket no demuestra conexión del microcontrolador.
+
+## Administración de catálogos
+
+El prefijo `/admin` distingue la configuración del catálogo de la ejecución del vehículo. Por ejemplo, **crear una DEMO** en `/admin/vehiculos/1/demos` guarda su definición; **ejecutarla** utiliza `/vehiculos/1/demos`.
+
+| Recurso | Rutas administrativas | Operaciones disponibles |
+| --- | --- | --- |
+| Vehículos | `/admin/vehiculos`, `/admin/vehiculos/{id_vehiculo}` | Crear, listar, consultar, actualizar y eliminar |
+| Estado | `/admin/vehiculos/{id_vehiculo}/estado` | Consultar; puede devolver `null` si aún no existe |
+| Comandos | `/admin/vehiculos/{id_vehiculo}/comandos` y `/{id_comando}` | Crear, listar, actualizar y eliminar |
+| DEMO | `/admin/vehiculos/{id_vehiculo}/demos` y `/{id_demo}` | Crear, listar, actualizar y eliminar |
+| Pasos de DEMO | `/admin/vehiculos/{id_vehiculo}/demos/{id_demo}/movimientos` y `/{id_demo_movimiento}` | Agregar, listar, actualizar y eliminar |
+
+Las altas responden `201`, las consultas/actualizaciones `200` y las eliminaciones `204` sin cuerpo. La administración permite consultar y reactivar recursos inactivos. Valida pertenencia al vehículo/DEMO, códigos únicos por vehículo, orden único por DEMO y tiempos no negativos.
+
+**Los DELETE eliminan físicamente.** Para desactivar un vehículo, comando o DEMO, utiliza su PUT con `activo=0`. Las posibles cascadas o restricciones de eliminación son las de la base MySQL existente; consúltalas con el diagnóstico antes de borrar registros.
+
+Los cuerpos JSON, rutas completas y reglas están en [la guía de administración](docs/ADMINISTRACION.md). La [correspondencia de procedimientos](docs/PROCEDIMIENTOS.md) documenta cómo se integran los 21 SP.
+
+## WebSocket: eventos en tiempo real
+
+En Postman selecciona **New → WebSocket** y utiliza:
 
 ```text
-app/
-  core/          Settings, Database, autenticación y errores
-  models/        Peticiones, secuencia DEMO, historial y eventos Pydantic
-  repositories/  ProcedureRepository, VehicleRepository y CatalogRepository
-  services/      VehicleService, DemoService, CatalogService y coordinación por vehículo
-  api/           Endpoints HTTP y WebSocket
-  websocket/     WebSocketManager: salas y cola independiente por cliente
-  main.py        Creación de la aplicación y ciclo de vida
-scripts/         Configuración personal y diagnóstico de solo lectura
-tests/           Pruebas con dobles de MySQL, sin datos reales
-postman/         Colección de tres escenarios y colección auxiliar de administración
-docs/            Contratos de los 21 SP y guía de administración
+ws://localhost:8000/ws/vehiculos/1
 ```
 
-El repositorio ejecuta MySQL en hilos mediante `asyncio.to_thread`, con conexiones independientes que se cierran al terminar. Los parámetros se enlazan con `callproc`; los nombres de SP son constantes. La capa HTTP no contiene SQL.
+Antes de conectar, configura el encabezado:
 
-## Contrato HTTP
-
-| Método y ruta | Cuerpo / consulta | Resultado |
-| --- | --- | --- |
-| `POST /vehiculos/1/movimientos` | `{"id_comando":2,"origen":"Postman"}` | `200` y evento del movimiento confirmado en BD |
-| `GET /vehiculos/1/historial?limite=10` | `limite` entre 1 y 10 | Hasta diez registros, más recientes primero |
-| `POST /vehiculos/1/demos` | `{"id_demo":1}` | `202` y `demo_iniciada` |
-| `DELETE /vehiculos/1/demos/activa` | Sin cuerpo | `200` y `demo_cancelada`, o `409` si no hay DEMO |
-
-Los controles POST/DELETE requieren `Authorization: Bearer <token local>`. El historial es lectura local sin token. Los IDs de ruta son positivos. `id_comando` e `id_demo` exigen enteros positivos; no se permiten propiedades extra. `origen` tiene entre 1 y 30 caracteres. `limite>10` devuelve `422`.
-
-Las validaciones distinguen vehículo/DEMO inexistente (`404`), inactivos o DEMO simultánea (`409`), comando inválido/inactivo/ajeno (`422`), autenticación (`401`) y configuración o fallo SQL (`503`). La ausencia de estado inicial se interpreta como conexión desconocida y se guarda `conectado=0` al primer movimiento. Si ya hay estado, se conserva exactamente su `conectado`. Ninguna petición permite editar ese campo.
-
-Los IDs de comando se validan contra `sp_obtener_comandos_vehiculo`. El código se toma del catálogo/estado devuelto por MySQL: nunca se deduce del ID. El comando llamado `DEMO` se dirige al endpoint de inicio y no se registra como movimiento individual.
-
-Para un movimiento individual, `sp_actualizar_estado` y `sp_registrar_historial` comparten conexión y transacción. Primero se ejecuta `COMMIT`; después se publica el evento. Un fallo de escritura o confirmación provoca intento de `ROLLBACK`, error HTTP y ningún evento de éxito. Se conserva la causa SQL fuera de las respuestas; no se imprimen mensajes del driver.
-
-Esto requiere tablas **InnoDB**, una clave única por `estado_vehiculo.id_vehiculo` para el upsert existente y SP sin `COMMIT` interno. Las transacciones de escritura usan aislamiento `SERIALIZABLE` para proteger la lectura de `conectado` frente a escrituras concurrentes. Un conflicto de integridad o entre transacciones devuelve `409`/`422`; los fallos de conexión devuelven `503`; no se reintenta automáticamente un POST para evitar duplicados. Si se pierde la conexión durante `COMMIT`, el resultado de la transacción puede ser incierto: consulta el historial antes de repetirla.
-
-`sp_obtener_historial` devuelve actualmente todo el historial ordenado; la API recorta la respuesta a diez. Reducir la lectura en MySQL requerirá una futura revisión del SP, que no se modifica aquí.
-
-## WebSocket
-
-Conecta a `ws://localhost:8000/ws/vehiculos/1` con el encabezado `Authorization: Bearer <token local>`. Se acepta más de un cliente por vehículo. El primer evento es `estado`, con el último estado leído de MySQL; si no existe, `estado` es `null`. Snapshot y suscripción se coordinan con los movimientos de esta API.
-
-El canal es de observación: no ejecuta órdenes recibidas por WebSocket. Usa HTTP para controlar. Un token inválido, un vehículo inexistente/inactivo o un fallo al leer el estado impiden la conexión (rechazo previo al handshake; código interno de cierre `1008`). No se transporta el token en la URL. Postman admite encabezados para WebSocket; un cliente de navegador necesitaría otra estrategia de autenticación antes de integrarlo.
-
-Todos los eventos incluyen:
-
-```json
-{
-  "tipo": "demo_movimiento",
-  "id_vehiculo": 1,
-  "id_comando": 2,
-  "comando": "ADELANTE",
-  "codigo": 2,
-  "marca_temporal": "2026-10-14T18:00:00Z",
-  "estado": {"id_vehiculo": 1, "id_comando": 2, "conectado": 0},
-  "id_demo": 1,
-  "orden": 1,
-  "duracion_ms": 2000,
-  "pausa_ms": 400,
-  "mensaje": null,
-  "ejecucion_fisica_confirmada": false
-}
+```text
+Authorization: Bearer TU_TOKEN
 ```
 
-Es un ejemplo ilustrativo; el estado real también incluye las columnas devueltas por tu SP. `marca_temporal` es UTC de emisión; la fecha del estado/historial conserva la información de MySQL y puede no incluir zona horaria.
+Reemplaza `TU_TOKEN` por el valor local y pulsa **Connect**. El primer evento es `estado`, con el último estado de MySQL. Puedes conectar dos o más pestañas al mismo vehículo: reciben los mismos eventos de esa sala y no los de otros vehículos.
 
-| `tipo` | Significado |
+**Las órdenes se envían por HTTP en otra pestaña.** Este WebSocket recibe eventos automáticamente; no ejecuta mensajes enviados con el botón Send.
+
+| Evento | Significado |
 | --- | --- |
 | `estado` | Último estado al conectar |
-| `movimiento_individual` | Estado e historial confirmados |
+| `movimiento_individual` | Estado e historial del movimiento confirmados |
 | `demo_iniciada` | Secuencia validada y tarea creada |
-| `demo_movimiento` | Estado de este paso confirmado en BD |
-| `demo_finalizada` | Se consumió la secuencia con duración y pausas |
+| `demo_movimiento` | Estado del paso confirmado en la base |
+| `demo_finalizada` | Secuencia y sus esperas terminadas |
 | `demo_cancelada` | Cancelación terminada; no habrá más pasos de esa ejecución |
-| `error` | Fallo de una operación o de la tarea DEMO; `mensaje` explica el problema |
+| `error` | Fallo al procesar una operación o la DEMO |
 
-Las claves `id_comando`, `comando` y `codigo` siempre existen, pero son `null` cuando no se conoce un comando. Para DEMO se incluye `id_demo`; `orden`, `duracion_ms` y `pausa_ms` son `null` al iniciar y describen el último paso procesado en los eventos terminales. Un error al iniciar puede no tener estado. Cada cliente recibe solamente la sala de su vehículo y conserva orden FIFO. Se retiran desconexiones y se cierra un cliente lento si agota su cola de 64 eventos o excede dos segundos al enviar; debe reconectar para recuperar el estado actual.
+Todos incluyen `tipo`, `id_vehiculo`, `id_comando`, `comando`, `codigo`, `marca_temporal`, `estado`, `mensaje` y `ejecucion_fisica_confirmada=false`. Para DEMO también se incluyen `id_demo`, `orden`, `duracion_ms` y `pausa_ms`. Los campos que todavía no correspondan o no se conozcan pueden ser `null`. La marca temporal de emisión es UTC; las fechas devueltas por MySQL conservan su información original.
 
-La DEMO lee `sp_obtener_demos` y `sp_obtener_movimientos_demo` en cada inicio, ordena por `orden` y valida todos los comandos antes de empezar. Cada paso vuelve a validar vehículo y comando, actualiza estado sin llamar `sp_registrar_historial`, emite y espera duración + pausa de forma asíncrona. Se rechazan movimientos individuales durante DEMO con `409` para no mezclar órdenes.
+Cancelar interrumpe las esperas. Si un paso ya está procesándose en MySQL, se espera su conclusión y se suprime su evento de movimiento; ese paso puede quedar confirmado en el estado, pero no se inician pasos posteriores. Los eventos ya enviados pueden recibirse antes del terminal. **Cancelar la secuencia no envía un comando físico de parada.**
 
-Cancelar activa una señal sin esperar el candado del vehículo e interrumpe las esperas. Si MySQL ya procesa un paso, no es seguro interrumpir ese hilo: se espera su conclusión y se suprime su evento de movimiento. Ese paso puede quedar confirmado en el estado; el evento terminal lo refleja. No se inician pasos posteriores. Eventos ya enviados o en cola antes de cancelar pueden llegar antes del evento terminal. No se inventa `DETENER` ni se modifica `conectado`. Cancelar la secuencia **no demuestra que el vehículo físico se haya detenido**; para eso falta definir el comando real e integrar el ESP8266.
+Las desconexiones se retiran de la sala. Cada cliente tiene una cola de 64 eventos y un límite de dos segundos por envío; un cliente que no pueda recibirlos se desconecta y debe reconectar para recuperar el estado actual. Un rechazo durante el handshake puede aparecer en Postman como HTTP `403`: revisa autorización, existencia/actividad del vehículo y disponibilidad de MySQL.
 
-## Los tres escenarios de entrega en Postman
+## Comprobación de funcionamiento
 
-Importa `postman/actividad_2_5.postman_collection.json`. Define `control_token` como variable local sensible, sin guardar su valor en el archivo compartido. Las demás variables vienen con localhost, vehículo 1, comando 2 y DEMO 1; verifica los IDs reales con el diagnóstico. Para impedir cambios simultáneos al historial, realiza la evidencia sin otro cliente enviando movimientos individuales.
-
-1. **POST individual.** Abre dos pestañas WebSocket al vehículo 1, agrega el encabezado de autorización a ambas y pulsa Connect. Verifica el evento inicial. Ejecuta el POST de la carpeta 1 con `id_comando=2` y `origen=Postman`. Espera `200`, un `movimiento_individual` idéntico en ambos clientes y `conectado` conservado. El código viene de MySQL. Oculta tokens en la captura.
-2. **GET historial.** Ejecuta la carpeta 2 después del POST. Espera `200`, hasta diez registros, el nuevo movimiento primero y origen `Postman`. Un límite de once debe responder `422`; esta es una comprobación auxiliar del mismo servicio.
-3. **WebSocket DEMO e historial sin cambios.** Con ambos WebSocket conectados, ejecuta `3.1 Historial antes`; su prueba guarda la lista localmente. Opcionalmente ejecuta `python scripts/diagnosticar_mysql.py` y anota el total completo de historial. Ejecuta `3.2 Iniciar DEMO`: espera `202`, `demo_iniciada`, cada `demo_movimiento` y `demo_finalizada` en ambos clientes. Con los datos confirmados son ocho pasos y aproximadamente 11.4 segundos más el tiempo SQL; la secuencia siempre viene de MySQL. **Espera el evento final antes de ejecutar `3.3 Historial después`**: su prueba exige la misma lista e IDs. Repite el diagnóstico para comprobar también que el total completo no cambió. Durante la secuencia, otro inicio debe responder `409`. Como comprobación auxiliar, reinicia DEMO y ejecuta `3.4 Cancelar DEMO`; verifica `demo_cancelada` y ausencia de movimientos posteriores de esa ejecución.
-
-La colección contiene HTTP. Crea manualmente las dos pestañas WebSocket en Postman: el formato de colección HTTP utilizado no incluye su sesión de WebSocket. No ejecutes toda la carpeta 3 automáticamente sin esperar la finalización: las solicitudes HTTP no esperan los eventos del socket. El botón de cancelación se prueba en una segunda ejecución, después de obtener la evidencia de finalización.
-
-La guía pide **Thunder Client**. Postman es la preferencia del estudiante para probar; la aceptación de su evidencia sigue pendiente de confirmación con el profesor. No se da por autorizada la sustitución ni se presentan escenarios adicionales como entregables.
-
-## Verificación y límites
+### Pruebas automatizadas
 
 ```bash
+python -m pip install -r requirements-dev.txt
 python -m unittest discover -v
 ```
 
-Las pruebas automatizadas usan dobles explícitos: validan contratos HTTP, autenticación, dos clientes, aislamiento de salas, desconexiones, límites, parámetros enlazados, conservación de conexión, transacción/rollback, fallo de commit, DEMO sin historial y cancelación durante espera o SQL. **No acreditan que los SP reales estén instalados ni que MySQL ejecute correctamente sus transacciones.** Consulta `VALIDACION.md` para el resultado de esta sesión.
+La última verificación documentada aprobó **46 pruebas**, con SP simulados, y ejercitó los scripts de la colección administrativa. Estas pruebas validan la aplicación, pero **no sustituyen la comprobación contra MySQL real**. Consulta [VALIDACION.md](VALIDACION.md) para el alcance y los resultados.
 
-El diagnóstico local consulta firmas de SP, motores, índice único, control transaccional interno, estado y secuencia sin modificar datos. Requiere tu contraseña y permisos de lectura/ejecución y metadatos. No cambia el esquema si detecta un problema; informa lo que debe revisarse.
+### Pruebas manuales con Postman
 
-## APIs de administración y cobertura de los 21 SP
+Las dos colecciones están en `postman/`. Importa la que corresponda y configura su variable `control_token` como valor local. Verifica que `base_url` sea `http://localhost:8000`. Los WebSocket se crean manualmente.
 
-Las 13 operaciones pendientes ya están implementadas bajo `/admin`: crear/listar/actualizar/eliminar vehículos; crear/actualizar/eliminar comandos y DEMO; agregar/actualizar/eliminar movimientos de DEMO. Se incluyen cinco consultas auxiliares para inspeccionar los recursos. Swagger documenta **22 operaciones HTTP en total**, además del WebSocket.
+**Control y transmisión — `actividad_2_5.postman_collection.json`:**
 
-Consulta [la guía de administración](docs/ADMINISTRACION.md) para las rutas, cuerpos, colección Postman y precauciones de las eliminaciones físicas; [la correspondencia de procedimientos](docs/PROCEDIMIENTOS.md) relaciona los 21 SP con sus endpoints. Todas las operaciones `/admin`, incluidas las lecturas, requieren Bearer Token. La colección original conserva exactamente los tres escenarios de entrega; la colección de administración es auxiliar.
+1. Conecta dos clientes WebSocket al mismo vehículo. Envía el POST individual y verifica `200`, el evento en ambos clientes y conservación de `conectado`.
+2. Consulta el historial y verifica el nuevo registro y el máximo de diez elementos.
+3. Ejecuta **3.1 Historial antes**, inicia DEMO con **3.2**, espera `demo_finalizada` en ambos clientes y ejecuta **3.3 Historial después**. La prueba de historial idéntico debe aprobarse. En otra ejecución prueba **3.4 Cancelar DEMO** y ausencia de pasos posteriores.
 
-No se permite modificar un vehículo ni su catálogo mientras tenga una DEMO activa. La administración permite consultar y reactivar registros inactivos. Los movimientos HTTP y las ejecuciones DEMO mantienen sus validaciones de actividad originales. Agregar o actualizar un paso exige un comando del mismo vehículo; ejecutar la DEMO vuelve a exigir que esté activo.
+No ejecutes toda la carpeta DEMO automáticamente: el GET posterior debe esperar al evento final. Con los datos originales del laboratorio, DEMO 1 tiene ocho pasos y aproximadamente 11.4 segundos de duración y pausas, más el tiempo de MySQL; la API siempre lee la secuencia vigente.
 
-Los SP `sp_eliminar_*` ejecutan `DELETE` físico. No se convierten en desactivaciones ni se modifican sus reglas: los efectos sobre registros relacionados dependen de las llaves foráneas de tu MySQL. El diagnóstico ahora verifica las **21 firmas**, los seis motores y muestra las reglas `ON DELETE`/`ON UPDATE` de solo lectura. Las pruebas nuevas automatizadas usan SP simulados y no borran datos reales.
+**Administración — `administracion_2_5.postman_collection.json`:**
 
+1. Carpeta A: crear vehículo, comando, DEMO y paso de prueba.
+2. Carpeta B: consultar los catálogos y comprobar sus IDs.
+3. Carpeta C: actualizar y verificar los cambios.
+4. Carpeta D: eliminar los registros creados, en orden paso → DEMO → comando → vehículo.
 
-Para Amazon RDS se podrá cambiar la configuración de conexión, pero antes harán falta TLS, permisos de red y revisión del entorno. Esta etapa no crea recursos AWS ni despliega públicamente la API. Versionar el código en GitHub no inicia un servidor.
+La colección administrativa captura IDs de registros nuevos `LAB_API_2_5`; sus variables empiezan vacías. Usa esos registros para comprobar CRUD y conserva los datos del vehículo real. Revisa la [guía administrativa](docs/ADMINISTRACION.md) antes de ejecutar la limpieza.
 
-Referencias técnicas consultadas: [WebSockets en FastAPI](https://fastapi.tiangolo.com/advanced/websockets/), [parámetros de callproc](https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-callproc.html) y [confirmación de transacciones en Connector/Python](https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlconnection-commit.html).
+Los tres escenarios de control documentan la validación inicial; las comprobaciones CRUD completan la revisión del conjunto de APIs antes del despliegue. **El entregable final comprende estas mismas APIs integradas, ejecutándose en AWS y conectadas a RDS.** La guía académica menciona Thunder Client; la aceptación de evidencias hechas con Postman debe confirmarse con el profesor.
 
-Para recuperar el ID de un paso recién agregado, la API consulta LAST_INSERT_ID() en la misma conexión que llamó al SP, conforme a [la documentación de MySQL](https://dev.mysql.com/doc/refman/8.4/en/stored-routines-last-insert-id.html).
+## Etapa final: las mismas APIs en EC2 con RDS
+
+Arquitectura de destino:
+
+```text
+Postman / cliente
+       │ HTTP y WebSocket (HTTPS/WSS al configurar TLS)
+       ▼
+Mismas APIs FastAPI en la instancia EC2
+       │ conexión MySQL
+       ▼
+Amazon RDS MySQL — esquema vehiculo_iot y 21 SP
+```
+
+La migración conserva los endpoints, modelos, servicios y procedimientos. Cambia el lugar donde se ejecuta la aplicación y la configuración de conexión a la base. **El despliegue AWS todavía está pendiente** y se realizará después de confirmar las pruebas locales.
+
+Pasos previstos:
+
+1. Completar las pruebas de funcionamiento local del control y del CRUD.
+2. Preparar en RDS el esquema, las seis tablas, relaciones y los 21 SP compatibles con la base validada; revisar el script de importación y los permisos del usuario de aplicación.
+3. Copiar o clonar esta versión del proyecto en la instancia EC2, instalar Python y crear allí su propio entorno virtual y sus dependencias.
+4. Configurar la conectividad de EC2 a RDS. Para este escenario se usará la misma VPC y una regla de MySQL en el puerto configurado —normalmente 3306— cuyo origen sea el grupo de seguridad de EC2. Véase [la guía de conexión EC2–RDS de AWS](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/tutorial-connect-ec2-instance-to-rds-database.html).
+5. Crear la configuración privada de la instancia con `MYSQL_HOST` apuntando al **endpoint de RDS**, y definir allí puerto, esquema, usuario, contraseña y token. `127.0.0.1` seguiría apuntando a la propia instancia, no a RDS.
+6. Preparar y verificar TLS para la conexión MySQL, incluido el certificado de RDS. El adaptador actual se configuró para el laboratorio local; esa configuración TLS se incorporará y comprobará durante la migración. Referencia: [seguridad de conexiones MySQL en RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/securing-mysql-connections.html).
+7. Configurar la ejecución persistente de la API según el sistema operativo de la instancia, su punto de acceso HTTP/WebSocket y HTTPS/WSS. Mantener un solo proceso mientras la coordinación siga en memoria. Revisar el acceso al historial, que actualmente es una lectura local sin token, antes de publicar el servicio.
+8. Repetir los escenarios de control y CRUD desde el cliente contra la API de EC2, comprobando que los datos se leen/escriben en RDS y que DEMO no modifica el historial.
+
+El cliente se conectará a **la API de EC2**; será la API quien se conecte a **RDS**. Subir el repositorio a GitHub conserva el código, pero no despliega ni arranca el servidor por sí solo.
+
+## Organización del proyecto
+
+```text
+app/
+  core/          Configuración, conexión MySQL, autenticación y errores
+  models/        Modelos y validaciones Pydantic
+  repositories/  Ejecución de SP y acceso a los datos
+  services/      Reglas de negocio y coordinación de DEMO
+  api/           Endpoints HTTP y WebSocket
+  websocket/     Salas de clientes y envío de eventos
+  main.py        Creación y ciclo de vida de la aplicación
+scripts/         Configuración de contraseña y diagnóstico de solo lectura
+postman/         Colecciones de control y administración
+tests/           Pruebas automatizadas con SP simulados
+docs/            Guía administrativa y contratos de los procedimientos
+```
+
+La separación por clases mantiene configuración/conexión, repositorios, servicios, modelos y endpoints independientes. MySQL se ejecuta en hilos para no bloquear el bucle asíncrono. Cada unidad de trabajo libera su conexión y cursores; los valores SQL se enlazan, no se concatenan.
+
+## Respuestas y límites importantes
+
+| Resultado | Interpretación |
+| --- | --- |
+| `401` | Token HTTP ausente o incorrecto |
+| `403` en WebSocket | Handshake rechazado: revisar encabezado y disponibilidad del vehículo/base |
+| `404` | Recurso inexistente o ajeno al vehículo/DEMO indicado |
+| `409` | DEMO activa, recurso inactivo, código/orden duplicado o conflicto de integridad/transacción |
+| `422` | Petición, límites o referencias inválidos |
+| `503` | Configuración o MySQL no disponible, o contrato de SP incompatible |
+
+Si falla una escritura se intenta rollback y no se publica éxito. Una pérdida de conexión durante COMMIT puede dejar un resultado incierto: consulta el recurso antes de repetir una creación o un movimiento. No hay reintentos automáticos de escritura.
+
+El SP de historial devuelve actualmente todos los registros ordenados; la API limita su respuesta a diez. Optimizar la lectura en MySQL requeriría una revisión posterior del SP. La coordinación entre varios procesos y la confirmación física del ESP8266 quedan fuera de la implementación actual.

@@ -113,7 +113,7 @@ Ejecuta sus carpetas en orden:
 
 No reemplaces esas variables con IDs de tu carro real. La limpieza está diseñada para un catálogo de prueba sin historial ni ejecución. Si ya utilizaste ese vehículo para movimientos o agregaste otras relaciones, revisa sus dependencias antes de eliminarlo.
 
-Estas son pruebas auxiliares de integración de SP. **Los entregables continúan siendo los tres escenarios originales** de `actividad_2_5.postman_collection.json`: POST individual, GET historial y WebSocket DEMO sin cambio de historial. La guía pide Thunder Client y no se presupone autorización del profesor para sustituirlo por Postman.
+Estas pruebas completan la validación del CRUD. Los tres escenarios de `actividad_2_5.postman_collection.json` comprueban POST individual, GET historial y WebSocket DEMO sin cambio de historial. **El entregable final será este mismo conjunto de APIs ejecutándose en EC2 y conectándose a RDS**, después de comprobar su funcionamiento local. La guía pide Thunder Client y no se presupone autorización del profesor para sustituirlo por Postman.
 
 ## Verificación automática
 

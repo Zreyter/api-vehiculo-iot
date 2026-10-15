@@ -1,5 +1,6 @@
 """Diagnóstico de solo lectura. No imprime credenciales ni definiciones SQL."""
 import re
+import csv
 import sys
 from pathlib import Path
 
@@ -10,16 +11,15 @@ from app.core.database import Database
 from app.core.errors import ServiceError
 from app.repositories.vehicle_repository import VehicleRepository
 
-EXPECTED = {
-    "sp_obtener_vehiculo": ["p_id_vehiculo"],
-    "sp_obtener_comandos_vehiculo": ["p_id_vehiculo"],
-    "sp_obtener_estado": ["p_id_vehiculo"],
-    "sp_actualizar_estado": ["p_id_vehiculo", "p_id_comando", "p_conectado"],
-    "sp_registrar_historial": ["p_id_vehiculo", "p_id_comando", "p_origen"],
-    "sp_obtener_historial": ["p_id_vehiculo"],
-    "sp_obtener_demos": ["p_id_vehiculo"],
-    "sp_obtener_movimientos_demo": ["p_id_demo"],
-}
+CONTRACT_DIR = Path(__file__).resolve().parents[1] / "docs"
+with (CONTRACT_DIR / "sp_definiciones.csv").open(encoding="utf-8-sig", newline="") as source:
+    EXPECTED = {r["procedimiento"]: [] for r in csv.DictReader(source)}
+with (CONTRACT_DIR / "sp_parametros.csv").open(encoding="utf-8-sig", newline="") as source:
+    for row in csv.DictReader(source):
+        EXPECTED[row["procedimiento"]].append(row)
+for parameters in EXPECTED.values():
+    parameters.sort(key=lambda r: int(r["posicion"]))
+TABLES = ("vehiculos", "comandos", "demos", "demo_movimientos", "estado_vehiculo", "historial_comandos")
 
 
 def main():
@@ -35,8 +35,14 @@ def main():
             cursor = connection.cursor(dictionary=True)
             try:
                 cursor.execute(
-                    "SELECT SPECIFIC_NAME, PARAMETER_NAME, PARAMETER_MODE, DATA_TYPE, "
-                    "CHARACTER_MAXIMUM_LENGTH FROM information_schema.PARAMETERS "
+                    "SELECT ROUTINE_NAME, ROUTINE_DEFINITION FROM information_schema.ROUTINES "
+                    "WHERE ROUTINE_SCHEMA=%s AND ROUTINE_TYPE=%s",
+                    (settings.mysql_database, "PROCEDURE"),
+                )
+                definitions = {row["ROUTINE_NAME"]: row["ROUTINE_DEFINITION"] for row in cursor.fetchall()}
+                cursor.execute(
+                    "SELECT SPECIFIC_NAME, PARAMETER_NAME, PARAMETER_MODE, DTD_IDENTIFIER "
+                    "FROM information_schema.PARAMETERS "
                     "WHERE SPECIFIC_SCHEMA=%s ORDER BY SPECIFIC_NAME, ORDINAL_POSITION",
                     (settings.mysql_database,),
                 )
@@ -45,26 +51,24 @@ def main():
                     signatures.setdefault(row["SPECIFIC_NAME"], []).append(row)
                 for name, expected in EXPECTED.items():
                     rows = signatures.get(name, [])
-                    actual = [r["PARAMETER_NAME"].lower() for r in rows]
-                    ok = actual == expected and all(r["PARAMETER_MODE"] == "IN" for r in rows)
+                    actual = [(r["PARAMETER_NAME"].lower(), r["PARAMETER_MODE"], r["DTD_IDENTIFIER"].lower()) for r in rows]
+                    wanted = [(r["parametro"].lower(), r["modo"], r["tipo"].lower()) for r in expected]
+                    ok = name in definitions and actual == wanted
                     print(f"{name}: {'OK' if ok else 'REVISAR firma o permisos de metadatos'}")
                     if not ok:
                         problems.append(name)
-                    if name == "sp_registrar_historial" and rows:
-                        origin = rows[-1]
-                        if origin["DATA_TYPE"].lower() != "varchar" or origin["CHARACTER_MAXIMUM_LENGTH"] != 30:
-                            problems.append("p_origen debe ser VARCHAR(30)")
-                print("Firmas disponibles para la futura ampliación (no se implementan):")
-                for name, rows in sorted(signatures.items()):
-                    if name.startswith("sp_") and name not in EXPECTED:
-                        print(name + "(" + ", ".join(f"{r['PARAMETER_MODE']} {r['PARAMETER_NAME']} {r['DATA_TYPE']}" for r in rows) + ")")
+                    definition = definitions.get(name)
+                    if definition is None:
+                        problems.append(name + ": definición no visible; revisa permisos de metadatos")
+                    elif re.search(r"\b(COMMIT|ROLLBACK|START\s+TRANSACTION)\b", definition, re.I):
+                        problems.append(name + ": revisar control transaccional interno")
                 cursor.execute(
                     "SELECT TABLE_NAME, ENGINE FROM information_schema.TABLES "
-                    "WHERE TABLE_SCHEMA=%s AND TABLE_NAME IN (%s,%s)",
-                    (settings.mysql_database, "estado_vehiculo", "historial_comandos"),
+                    "WHERE TABLE_SCHEMA=%s AND TABLE_NAME IN (%s,%s,%s,%s,%s,%s)",
+                    (settings.mysql_database, *TABLES),
                 )
                 engines = {r["TABLE_NAME"]: r["ENGINE"] for r in cursor.fetchall()}
-                for table in ("estado_vehiculo", "historial_comandos"):
+                for table in TABLES:
                     ok = str(engines.get(table, "")).lower() == "innodb"
                     print(f"{table}: {'InnoDB OK' if ok else 'REVISAR motor transaccional'}")
                     if not ok:
@@ -80,17 +84,14 @@ def main():
                 if ["id_vehiculo"] not in indexes.values():
                     problems.append("estado_vehiculo requiere clave única por id_vehiculo para el upsert existente")
                 cursor.execute(
-                    "SELECT ROUTINE_NAME, ROUTINE_DEFINITION FROM information_schema.ROUTINES "
-                    "WHERE ROUTINE_SCHEMA=%s AND ROUTINE_NAME IN (%s,%s)",
-                    (settings.mysql_database, "sp_actualizar_estado", "sp_registrar_historial"),
+                    "SELECT TABLE_NAME, CONSTRAINT_NAME, REFERENCED_TABLE_NAME, UPDATE_RULE, DELETE_RULE "
+                    "FROM information_schema.REFERENTIAL_CONSTRAINTS "
+                    "WHERE CONSTRAINT_SCHEMA=%s ORDER BY TABLE_NAME, CONSTRAINT_NAME",
+                    (settings.mysql_database,),
                 )
-                definitions = cursor.fetchall()
-                for row in definitions:
-                    definition = row["ROUTINE_DEFINITION"]
-                    if definition is None:
-                        problems.append(row["ROUTINE_NAME"] + ": no se pudo verificar COMMIT interno por permisos")
-                    elif re.search(r"\b(COMMIT|ROLLBACK|START\s+TRANSACTION)\b", definition, re.I):
-                        problems.append(row["ROUTINE_NAME"] + ": revisar control transaccional interno")
+                print("Reglas reales de llaves foráneas (revisar antes de probar DELETE):")
+                for row in cursor.fetchall():
+                    print(f"{row['TABLE_NAME']} -> {row['REFERENCED_TABLE_NAME']}: ON DELETE {row['DELETE_RULE']}, ON UPDATE {row['UPDATE_RULE']}")
                 cursor.execute("SELECT COUNT(*) AS total FROM historial_comandos WHERE id_vehiculo=%s", (1,))
                 print("Total de historial del vehículo 1:", cursor.fetchone()["total"])
             finally:

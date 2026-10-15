@@ -1,31 +1,11 @@
 from pydantic import ValidationError
 
-from app.core.database import Database
 from app.core.errors import DatabaseUnavailable, ServiceError
 from app.models.schemas import DemoStep
+from app.repositories.procedures import ProcedureRepository
 
 
-class VehicleRepository:
-    def __init__(self, database: Database):
-        self.database = database
-
-    @staticmethod
-    def _call(connection, procedure: str, args: tuple) -> list[dict]:
-        # Los nombres proceden exclusivamente de constantes del código.
-        # callproc enlaza los valores; ningún dato de HTTP se concatena en SQL.
-        cursor = connection.cursor(dictionary=True)
-        try:
-            cursor.callproc(procedure, args)
-            rows = []
-            for result in cursor.stored_results():
-                try:
-                    rows.extend(result.fetchall())
-                finally:
-                    result.close()
-            return rows
-        finally:
-            cursor.close()
-
+class VehicleRepository(ProcedureRepository):
     def _vehicle(self, connection, vehicle_id: int) -> dict:
         rows = self._call(connection, "sp_obtener_vehiculo", (vehicle_id,))
         vehicle = next((r for r in rows if r.get("id_vehiculo") == vehicle_id), None)

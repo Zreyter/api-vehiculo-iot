@@ -1,0 +1,122 @@
+procedimiento,definicion
+sp_actualizar_comando,"BEGIN
+    UPDATE comandos
+    SET nombre=p_nombre,
+        codigo=p_codigo,
+        descripcion=p_descripcion,
+        activo=p_activo
+    WHERE id_comando=p_id_comando;
+END"
+sp_actualizar_demo,"BEGIN
+    UPDATE demos
+       SET nombre=p_nombre,
+           descripcion=p_descripcion,
+           activo=p_activo
+     WHERE id_demo=p_id_demo;
+END"
+sp_actualizar_estado,"BEGIN
+    INSERT INTO estado_vehiculo(id_vehiculo,id_comando,conectado)
+    VALUES(p_id_vehiculo,p_id_comando,p_conectado)
+    ON DUPLICATE KEY UPDATE
+      id_comando=VALUES(id_comando),
+      conectado=VALUES(conectado),
+      fecha_actualizacion=CURRENT_TIMESTAMP;
+END"
+sp_actualizar_movimiento_demo,"BEGIN
+    UPDATE demo_movimientos
+       SET id_comando=p_id_comando,
+           orden=p_orden,
+           duracion_ms=p_duracion_ms,
+           pausa_ms=p_pausa_ms
+     WHERE id_demo_movimiento=p_id_demo_movimiento;
+END"
+sp_actualizar_vehiculo,"BEGIN
+    UPDATE vehiculos
+       SET nombre=p_nombre,
+           modelo=p_modelo,
+           descripcion=p_descripcion,
+           microcontrolador=p_microcontrolador,
+           activo=p_activo
+     WHERE id_vehiculo=p_id_vehiculo;
+END"
+sp_agregar_movimiento_demo,"BEGIN
+    INSERT INTO demo_movimientos
+      (id_demo,id_comando,orden,duracion_ms,pausa_ms)
+    VALUES
+      (p_id_demo,p_id_comando,p_orden,p_duracion_ms,p_pausa_ms);
+END"
+sp_crear_comando,"BEGIN
+    INSERT INTO comandos(id_vehiculo,nombre,codigo,descripcion)
+    VALUES(p_id_vehiculo,p_nombre,p_codigo,p_descripcion);
+    SELECT LAST_INSERT_ID() AS id_comando;
+END"
+sp_crear_demo,"BEGIN
+    INSERT INTO demos(id_vehiculo,nombre,descripcion)
+    VALUES(p_id_vehiculo,p_nombre,p_descripcion);
+    SELECT LAST_INSERT_ID() AS id_demo;
+END"
+sp_crear_vehiculo,"BEGIN
+    INSERT INTO vehiculos(nombre, modelo, descripcion, microcontrolador)
+    VALUES(p_nombre, p_modelo, p_descripcion, p_microcontrolador);
+    SELECT LAST_INSERT_ID() AS id_vehiculo;
+END"
+sp_eliminar_comando,"BEGIN
+    DELETE FROM comandos WHERE id_comando=p_id_comando;
+END"
+sp_eliminar_demo,"BEGIN
+    DELETE FROM demos WHERE id_demo=p_id_demo;
+END"
+sp_eliminar_movimiento_demo,"BEGIN
+    DELETE FROM demo_movimientos
+     WHERE id_demo_movimiento=p_id_demo_movimiento;
+END"
+sp_eliminar_vehiculo,"BEGIN
+    DELETE FROM vehiculos WHERE id_vehiculo=p_id_vehiculo;
+END"
+sp_obtener_comandos_vehiculo,"BEGIN
+    SELECT * FROM comandos
+    WHERE id_vehiculo=p_id_vehiculo
+    ORDER BY codigo;
+END"
+sp_obtener_demos,"BEGIN
+    SELECT * FROM demos
+     WHERE id_vehiculo=p_id_vehiculo
+     ORDER BY id_demo;
+END"
+sp_obtener_estado,"BEGIN
+    SELECT e.id_vehiculo, v.nombre AS vehiculo,
+           e.id_comando, c.nombre AS comando, c.codigo,
+           e.conectado, e.fecha_actualizacion
+      FROM estado_vehiculo e
+      JOIN vehiculos v ON v.id_vehiculo=e.id_vehiculo
+ LEFT JOIN comandos c ON c.id_comando=e.id_comando
+     WHERE e.id_vehiculo=p_id_vehiculo;
+END"
+sp_obtener_historial,"BEGIN
+    SELECT h.id_historial, h.id_vehiculo,
+           c.nombre AS comando, c.codigo,
+           h.fecha_hora, h.origen
+      FROM historial_comandos h
+ LEFT JOIN comandos c ON c.id_comando=h.id_comando
+     WHERE h.id_vehiculo=p_id_vehiculo
+     ORDER BY h.fecha_hora DESC, h.id_historial DESC;
+END"
+sp_obtener_movimientos_demo,"BEGIN
+    SELECT dm.id_demo_movimiento, dm.orden,
+           dm.id_comando, c.nombre AS comando, c.codigo,
+           dm.duracion_ms, dm.pausa_ms
+      FROM demo_movimientos dm
+      JOIN comandos c ON c.id_comando=dm.id_comando
+     WHERE dm.id_demo=p_id_demo
+     ORDER BY dm.orden;
+END"
+sp_obtener_vehiculo,"BEGIN
+    SELECT * FROM vehiculos WHERE id_vehiculo = p_id_vehiculo;
+END"
+sp_obtener_vehiculos,"BEGIN
+    SELECT * FROM vehiculos ORDER BY id_vehiculo;
+END"
+sp_registrar_historial,"BEGIN
+    INSERT INTO historial_comandos(id_vehiculo,id_comando,origen)
+    VALUES(p_id_vehiculo,p_id_comando,p_origen);
+END"

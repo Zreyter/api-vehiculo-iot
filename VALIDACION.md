@@ -1,53 +1,59 @@
-# Verificación — 14 de octubre de 2026
+# Validación — Actividad 2.5, integración de los 21 SP
 
-Se implementó la primera etapa de la actividad 2.5 directamente en `api_vehiculo_iot`. El entorno original `.venv` se conservó; su intérprete disponible es Python 3.12.3 y sus paquetes existentes están en una carpeta de Python 3.13, por lo que no son importables desde ese ejecutable. Se preparó `.venv-lab` separado para el laboratorio.
+Fecha: 14 de octubre de 2026. Versión de aplicación: 0.2.0.
 
-## Resultado automatizado
+## Alcance
 
-**29 pruebas aprobadas**, con `python -m unittest discover -v`, usando dobles de la base de datos. Se ejecutaron primero en un entorno temporal Python 3.12.14 y después en el entorno persistente `.venv-lab` con Python 3.12.3: ambos aprobaron las 29. En `.venv-lab`, `python -m pip check` no encontró dependencias incompatibles y la aplicación se importó correctamente. Se comprobaron:
+Se revisaron las instrucciones disponibles en el chat **Actividad 2.5 APIs IoT Dev Activity**, los 52 parámetros de `esport-parametros.csv` y los 21 cuerpos de `esport-comportamiento-parametros.csv` proporcionados por el estudiante. Se conservaron como contrato en `docs/sp_parametros.csv` y `docs/sp_definiciones.csv`.
 
-- HTTP: autenticación de controles, validación Pydantic, máximo de diez registros, Swagger/OpenAPI y respuesta segura cuando falta la contraseña.
-- WebSocket: estado inicial, dos clientes en una sala, aislamiento entre vehículos y limpieza de desconexiones.
-- Repositorio: argumentos enlazados, cierre de cursores/conexión, conservación de `conectado`, escritura de ambos SP en la misma transacción, rollback al fallar historial o commit y rechazo de vehículo/comando inactivo o ajeno.
-- DEMO: lectura de una secuencia variable desde el repositorio de SP, ordenación, código independiente del ID, rechazo de duración negativa/orden repetido/DEMO inactiva o ajena, exclusión por vehículo y dos vehículos independientes.
-- Cancelación: interrupción de una espera larga; señal prioritaria mientras SQL simulado sigue en otro hilo; espera de su conclusión sin emitir el paso pendiente ni iniciar otro.
-- Historial: ninguna llamada de registro durante DEMO; comparación del historial antes/después al finalizar; errores sin eventos de éxito.
+Se agregaron las 13 operaciones pendientes y cinco consultas auxiliares bajo `/admin`. Swagger expone 22 operaciones HTTP en total, además del WebSocket. Se conservaron las rutas y la colección original de los tres escenarios de entrega.
 
-La versión instalada de Starlette emite un aviso de futura sustitución de `httpx` en su cliente de pruebas. No impidió la ejecución de las pruebas.
+## Pruebas automatizadas
 
-## Servidor real local
+**46 pruebas aprobadas** con `python -m unittest discover -v`, ejecutadas desde el entorno de verificación `.venv-lab` con Python 3.12.3. El entorno `.venv` del estudiante ya funciona en su terminal y es el indicado para ejecutar el proyecto; no se sustituyó ni modificó.
 
-Se inició temporalmente Uvicorn con la aplicación real en **127.0.0.1:8000**, con un proceso, y se comprobó:
+- Las 29 pruebas anteriores siguen aprobadas: movimiento, historial, dos clientes WebSocket, aislamiento, desconexiones, transacciones y cancelación DEMO durante espera o SQL.
+- Se agregaron 14 pruebas de administración: CRUD completo, pertenencia de recursos, inactivos/reactivación, código y orden duplicados, límites Pydantic, autenticación de las 18 rutas admin, bloqueo durante DEMO, integridad MySQL simulada, fallo de commit y cierre de WebSocket únicamente tras eliminar su vehículo con éxito.
+- Se agregaron tres pruebas del diagnóstico: los 21 contratos y seis motores, existencia del procedimiento sin parámetros y detección de cambios de tipos.
+- La prueba de integración completa invoca exactamente los **21 nombres de SP** contra un simulador, enlaza las firmas de los CSV y verifica que CRUD/DEMO no escriben historial. Recupera el ID de movimiento en la misma conexión mediante LAST_INSERT_ID().
 
-| Petición | Resultado observado |
+Las pruebas usan credenciales ficticias y un servidor de SP simulado; no se conectan a MySQL real. La versión de Starlette emite un aviso de deprecación sobre httpx que no impide ejecutar la suite.
+
+## Colecciones Postman
+
+- `actividad_2_5.postman_collection.json` permanece sin cambios: seis solicitudes HTTP que apoyan los tres escenarios originales y la cancelación auxiliar; los WebSocket se conectan manualmente.
+- `administracion_2_5.postman_collection.json` contiene 18 solicitudes auxiliares. Se ejecutó su flujo completo contra la aplicación y SP simulados, incluyendo sus scripts JavaScript de variables y pruebas: cuatro respuestas 201, diez respuestas 200 y cuatro respuestas 204.
+- Se comprobó que los IDs se capturan al crear registros, que las solicitudes dependientes rechazan IDs vacíos y que la limpieza devuelve los datos simulados a su estado inicial. No hay IDs predeterminados del vehículo real para las escrituras administrativas.
+- Ambas colecciones son JSON válido y corresponden a los métodos/rutas de OpenAPI. Los tokens exportados están vacíos.
+
+## Arranque real de Uvicorn
+
+Se inició temporalmente la aplicación real en un puerto efímero de **127.0.0.1**, sin interrumpir una posible instancia del estudiante en 8000. Se impuso contraseña MySQL vacía y un token temporal en el proceso de comprobación para impedir conexiones/escrituras reales:
+
+| Comprobación | Resultado |
 | --- | --- |
-| `GET /docs` | `200` |
-| `GET /openapi.json` | `200`; cuatro rutas HTTP |
-| `GET /vehiculos/1/historial` sin contraseña MySQL configurada | `503` controlado |
-| POST de movimiento sin token | `401` |
-| POST de DEMO sin token | `401` |
-| DELETE de DEMO sin token | `401` |
-| Conexión WebSocket sin token | Handshake rechazado, HTTP `403` |
+| Swagger | 200 |
+| OpenAPI | 22 operaciones HTTP |
+| Las 18 operaciones admin sin token | 401 |
+| POST admin con token y datos inválidos | 422 |
+| POST admin válido con contraseña MySQL ausente | 503 controlado, sin conexión SQL |
 
-El servidor temporal se detuvo al terminar. No quedó una instancia escuchando como parte de esta verificación.
+El servidor temporal terminó al finalizar. No quedó un servidor de comprobación en ejecución.
 
-También se comprobó compilación de los módulos, sintaxis JSON de la colección Postman, sustitución de IDs como números y token exportado vacío. Git ignora `.env`, ambos entornos virtuales y cachés. `.env` tiene permisos `600`; se generó el token sin imprimirlo y se dejó la contraseña vacía.
+## Lo que requiere MySQL real
 
-## Pendiente de MySQL y evidencia real
+El estudiante reportó aprobados los tres escenarios de la primera etapa en Postman. **La ampliación CRUD todavía requiere comprobación manual contra su MySQL.** No se ejecutaron altas, actualizaciones ni eliminaciones reales durante este trabajo.
 
-**No se verificaron los SP ni sus transacciones contra tu MySQL.** No se usaron credenciales de otros archivos. El diagnóstico detectó la contraseña pendiente y terminó antes de abrir una conexión. No se modificaron esquema ni datos existentes.
+El diagnóstico actualizado consulta las 21 firmas con sus tipos, los motores InnoDB de las seis tablas, la clave única del estado, posibles COMMIT internos y las reglas reales ON DELETE/ON UPDATE. Se probó con metadatos simulados; debe ejecutarse personalmente con la configuración local para confirmar su esquema vigente.
 
-Introduce personalmente la contraseña y ejecuta:
+Los cuatro SP de eliminación ejecutan DELETE físico. Los CSV no describen llaves foráneas ni triggers, por lo que no se afirma que la base real use CASCADE o RESTRICT. La API respeta sus reglas existentes y traduce errores de integridad sin exponer mensajes del driver. La colección auxiliar crea registros LAB_API_2_5 y limpia únicamente sus IDs, en orden paso → DEMO → comando → vehículo.
 
 ```bash
-source .venv-lab/bin/activate
-python scripts/configurar_password.py
+source .venv/bin/activate
 python scripts/diagnosticar_mysql.py
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-El diagnóstico verifica las ocho firmas, motores InnoDB, clave única del estado, ausencia de control transaccional interno en los dos SP de escritura y lectura del vehículo/DEMO. Sus resultados reales y las capturas de los tres escenarios del README quedan pendientes. Las pruebas con dobles no sustituyen esa evidencia.
+Consulta `docs/ADMINISTRACION.md` antes de ejecutar la colección auxiliar. Los entregables siguen siendo únicamente los tres escenarios originales. La aceptación de Postman en lugar de Thunder Client sigue pendiente del profesor.
 
-Postman contiene tres escenarios, con sesión WebSocket manual y comprobación de historial antes/después. La guía pide Thunder Client; sigue pendiente que el profesor autorice sustituirlo por Postman.
-
-No se publicó la API ni se subió el proyecto a GitHub. Los trece SP restantes no se implementaron sin conocer sus parámetros reales.
+No se cambió el esquema ni se leyeron/imprimieron contraseñas en las salidas. No se modificó `.env`, no se crearon recursos AWS ni se desplegó la API públicamente. Esta ampliación queda local y no se subió automáticamente a GitHub.

@@ -5,7 +5,7 @@ import mysql.connector
 from mysql.connector.abstracts import MySQLConnectionAbstract
 
 from app.core.config import Settings
-from app.core.errors import DatabaseUnavailable
+from app.core.errors import DatabaseUnavailable, ServiceError
 
 
 class Database:
@@ -39,13 +39,21 @@ class Database:
             )
             yield connection
             connection.commit()
-        except mysql.connector.Error:
+        except mysql.connector.Error as exc:
             if connection is not None:
                 try:
                     connection.rollback()
                 except mysql.connector.Error:
                     pass
             # No exponer mensajes del driver (servidor, usuario o SQL internos).
+            if exc.errno == 1062:
+                raise ServiceError(409, "Ya existe un registro con esos valores únicos.") from None
+            if exc.errno == 1451:
+                raise ServiceError(409, "No se puede eliminar o actualizar: existen registros relacionados.") from None
+            if exc.errno in (1452, 1048, 1264, 1406):
+                raise ServiceError(422, "Los datos no cumplen las restricciones de la base de datos.") from None
+            if exc.errno in (1205, 1213):
+                raise ServiceError(409, "Conflicto entre transacciones. Consulta el recurso antes de reintentar.") from None
             raise DatabaseUnavailable() from None
         except BaseException:
             if connection is not None:

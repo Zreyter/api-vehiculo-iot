@@ -1,0 +1,564 @@
+{
+  "info": {
+    "name": "Actividad 2.5 — Administración de los 21 SP (auxiliar)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Pruebas auxiliares CRUD con registros nuevos LAB_API_2_5. Requiere token local. Ejecuta en orden: creación, consultas, cambios y limpieza. Los DELETE borran físicamente SOLO los IDs capturados al crear estos registros. No uses vehículo 1 ni sus comandos/DEMO como IDs de prueba. Revisa reglas FK con el diagnóstico. No cambia los tres escenarios originales de entrega."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{control_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "control_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "id_vehiculo_prueba",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "id_comando_prueba",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "id_demo_prueba",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "id_movimiento_prueba",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "nombre_vehiculo_prueba",
+      "value": "LAB_API_2_5",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const template = pm.request.url.toString() + (pm.request.body ? pm.request.body.raw || \"\" : \"\");",
+          "for (const key of [\"id_vehiculo_prueba\", \"id_comando_prueba\", \"id_demo_prueba\", \"id_movimiento_prueba\"]) {",
+          "  if (template.includes(\"{{\" + key + \"}}\") && !/^[1-9][0-9]*$/.test(String(pm.variables.get(key) || \"\"))) {",
+          "    throw new Error(\"Primero crea el registro de prueba correspondiente: falta \" + key);",
+          "  }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "A. Crear registros nuevos (en orden)",
+      "item": [
+        {
+          "name": "A.1 Crear vehículo de prueba",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/vehiculos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"{{nombre_vehiculo_prueba}}\",\n  \"modelo\": \"LAB_API_2_5\",\n  \"descripcion\": \"Registro auxiliar creado por la colección CRUD\",\n  \"microcontrolador\": \"ESP8266\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "for (const key of [\"id_vehiculo_prueba\", \"id_comando_prueba\", \"id_demo_prueba\", \"id_movimiento_prueba\"]) pm.collectionVariables.unset(key);",
+                  "pm.collectionVariables.set(\"nombre_vehiculo_prueba\", \"LAB_API_2_5_\" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"id_vehiculo_prueba\", String(pm.response.json().id_vehiculo));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A.2 Crear comando de prueba",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/comandos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"COMANDO_LAB_API_2_5\",\n  \"codigo\": 9001,\n  \"descripcion\": \"Comando del vehículo de prueba; no se ejecuta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"id_comando_prueba\", String(pm.response.json().id_comando));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A.3 Crear definición DEMO de prueba",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/demos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"DEMO_LAB_API_2_5\",\n  \"descripcion\": \"Definición auxiliar; no se inicia\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"id_demo_prueba\", String(pm.response.json().id_demo));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A.4 Agregar movimiento a DEMO de prueba",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/demos/{{id_demo_prueba}}/movimientos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_comando\": {{id_comando_prueba}},\n  \"orden\": 1,\n  \"duracion_ms\": 200,\n  \"pausa_ms\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"id_movimiento_prueba\", String(pm.response.json().id_demo_movimiento));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "B. Consultar catálogos (incluye inactivos)",
+      "item": [
+        {
+          "name": "B.1 Listar vehículos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/admin/vehiculos"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B.2 Consultar vehículo de prueba",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B.3 Consultar estado de prueba (puede ser null)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/estado"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B.4 Listar comandos de prueba",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/comandos"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B.5 Listar DEMO de prueba",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/demos"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B.6 Listar movimientos de DEMO de prueba",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/demos/{{id_demo_prueba}}/movimientos"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "C. Actualizar registros de prueba",
+      "item": [
+        {
+          "name": "C.1 Actualizar vehículo",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"{{nombre_vehiculo_prueba}}\",\n  \"modelo\": \"LAB_API_2_5\",\n  \"descripcion\": \"Vehículo auxiliar actualizado\",\n  \"microcontrolador\": \"ESP8266\",\n  \"activo\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C.2 Actualizar comando",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/comandos/{{id_comando_prueba}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"COMANDO_LAB_API_2_5\",\n  \"codigo\": 9002,\n  \"descripcion\": \"Comando del vehículo de prueba; no se ejecuta\",\n  \"activo\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C.3 Actualizar DEMO",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/demos/{{id_demo_prueba}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"DEMO_LAB_API_2_5\",\n  \"descripcion\": \"DEMO auxiliar actualizada\",\n  \"activo\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C.4 Actualizar movimiento DEMO",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/demos/{{id_demo_prueba}}/movimientos/{{id_movimiento_prueba}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_comando\": {{id_comando_prueba}},\n  \"orden\": 2,\n  \"duracion_ms\": 400,\n  \"pausa_ms\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "D. Limpieza física de los registros creados (en orden)",
+      "item": [
+        {
+          "name": "D.1 Eliminar movimiento de prueba",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/demos/{{id_demo_prueba}}/movimientos/{{id_movimiento_prueba}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));",
+                  "if (pm.response.code === 204) pm.collectionVariables.unset(\"id_movimiento_prueba\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "D.2 Eliminar DEMO de prueba",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/demos/{{id_demo_prueba}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));",
+                  "if (pm.response.code === 204) pm.collectionVariables.unset(\"id_demo_prueba\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "D.3 Eliminar comando de prueba",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}/comandos/{{id_comando_prueba}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));",
+                  "if (pm.response.code === 204) pm.collectionVariables.unset(\"id_comando_prueba\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "D.4 Eliminar vehículo de prueba",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/admin/vehiculos/{{id_vehiculo_prueba}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));",
+                  "if (pm.response.code === 204) pm.collectionVariables.unset(\"id_vehiculo_prueba\");"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -67,3 +67,7 @@ class WebSocketManager:
     async def close(self) -> None:
         clients = [(vehicle_id, client) for vehicle_id, room in self.rooms.items() for client in room]
         await asyncio.gather(*(self.disconnect(v, c) for v, c in clients))
+
+    async def close_vehicle(self, vehicle_id: int) -> None:
+        clients = tuple(self.rooms.get(vehicle_id, ()))
+        await asyncio.gather(*(self.disconnect(vehicle_id, client) for client in clients))

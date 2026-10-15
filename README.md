@@ -1,14 +1,14 @@
 # Actividad 2.5 — APIs para IoT en entorno Dev
 
-Laboratorio con FastAPI, MySQL local y WebSocket. Se implementan movimiento individual, historial y DEMO con inicio/cancelación. Los ocho procedimientos usados son los confirmados para esta etapa; no se crean tablas, procedimientos ni datos de prueba en tu MySQL.
+Laboratorio con FastAPI, MySQL local y WebSocket. Integra los 21 procedimientos: administración de vehículos, comandos, DEMO y sus movimientos, además de movimiento individual, historial y ejecución DEMO con inicio/cancelación. El código utiliza las firmas confirmadas en los CSV; no crea ni modifica el esquema MySQL.
 
 ## Preparación y ejecución local
 
 Si acabas de clonar el repositorio, prepara tu propio entorno y configuración desde la raíz del proyecto:
 
 ```bash
-python3 -m venv .venv-lab
-source .venv-lab/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
 cp .env.example .env
 chmod 600 .env
@@ -17,21 +17,25 @@ python -c "import secrets; from dotenv import set_key; set_key('.env', 'CONTROL_
 
 Estos pasos son para una copia nueva: no reemplaces un `.env` existente. El repositorio incluye solo `.env.example`; la contraseña, el token y los entornos virtuales se quedan en cada computadora. Después configura personalmente la contraseña como se indica abajo.
 
-Desde VS Code abre esta carpeta y selecciona **Python: Select Interpreter → Enter interpreter path → `.venv-lab/bin/python`**. Conservamos `.venv`: sus paquetes están en `python3.13`, pero su ejecutable apunta a Python 3.12 y no los encuentra en esta sesión. Se preparó `.venv-lab` con el Python disponible, separado del original. Las primeras verificaciones se realizaron en un entorno temporal independiente.
+Desde VS Code abre esta carpeta y selecciona **Python: Select Interpreter → Enter interpreter path → `.venv/bin/python`**. Tu terminal ya comprobó que el entorno original `.venv` funciona; úsalo para ejecutar el proyecto. `.venv-lab` se utilizó únicamente para verificar desde la sesión de Codex con otro Python y no es necesario activarlo en tu terminal.
 
 ```bash
-source .venv-lab/bin/activate
+source .venv/bin/activate
 python --version
 python -m pip --version
-python -m pip install -r requirements-dev.txt
 ```
 
-Las dependencias ya se instalaron en `.venv-lab`. El comando de instalación permite reproducir la configuración si hace falta. Para ejecutar solamente la API basta `requirements.txt`; `requirements-dev.txt` agrega el cliente para pruebas.
+Para instalar o actualizar dependencias usa `python -m pip install -r requirements.txt`; para ejecutar las pruebas usa `requirements-dev.txt`, que agrega el cliente de pruebas.
 
-`.env` ya fue creado con host `127.0.0.1`, puerto `3306`, usuario `admin`, esquema `vehiculo_iot`, un token aleatorio y contraseña vacía. Está ignorado por Git y tiene permisos privados. **Introduce tú la contraseña**, sin enviarla al chat. Puedes usar el siguiente asistente en tu terminal, que no muestra lo escrito:
+`.env` es tu configuración privada. Conserva los valores de MySQL y `CONTROL_TOKEN` que ya usaste en las pruebas. Si falta la contraseña, introdúcela personalmente con el asistente; no es necesario volver a configurarla si ya funciona:
 
 ```bash
 python scripts/configurar_password.py
+```
+
+Comprueba MySQL e inicia la API desde la raíz del proyecto:
+
+```bash
 python scripts/diagnosticar_mysql.py
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
@@ -48,14 +52,15 @@ Usa **un solo proceso** y una sola instancia de la API para esta base. Las salas
 app/
   core/          Settings, Database, autenticación y errores
   models/        Peticiones, secuencia DEMO, historial y eventos Pydantic
-  repositories/  VehicleRepository: llamadas a procedimientos almacenados
-  services/      VehicleService, DemoService y coordinación por vehículo
+  repositories/  ProcedureRepository, VehicleRepository y CatalogRepository
+  services/      VehicleService, DemoService, CatalogService y coordinación por vehículo
   api/           Endpoints HTTP y WebSocket
   websocket/     WebSocketManager: salas y cola independiente por cliente
   main.py        Creación de la aplicación y ciclo de vida
 scripts/         Configuración personal y diagnóstico de solo lectura
 tests/           Pruebas con dobles de MySQL, sin datos reales
-postman/         Colección sin secretos para los tres escenarios
+postman/         Colección de tres escenarios y colección auxiliar de administración
+docs/            Contratos de los 21 SP y guía de administración
 ```
 
 El repositorio ejecuta MySQL en hilos mediante `asyncio.to_thread`, con conexiones independientes que se cierran al terminar. Los parámetros se enlazan con `callproc`; los nombres de SP son constantes. La capa HTTP no contiene SQL.
@@ -77,7 +82,7 @@ Los IDs de comando se validan contra `sp_obtener_comandos_vehiculo`. El código 
 
 Para un movimiento individual, `sp_actualizar_estado` y `sp_registrar_historial` comparten conexión y transacción. Primero se ejecuta `COMMIT`; después se publica el evento. Un fallo de escritura o confirmación provoca intento de `ROLLBACK`, error HTTP y ningún evento de éxito. Se conserva la causa SQL fuera de las respuestas; no se imprimen mensajes del driver.
 
-Esto requiere tablas **InnoDB**, una clave única por `estado_vehiculo.id_vehiculo` para el upsert existente y SP sin `COMMIT` interno. Las transacciones de escritura usan aislamiento `SERIALIZABLE` para proteger la lectura de `conectado` frente a escrituras concurrentes. Un conflicto SQL puede devolver `503`; no se reintenta automáticamente un POST para evitar duplicados. Si se pierde la conexión durante `COMMIT`, el resultado de la transacción puede ser incierto: consulta el historial antes de repetirla.
+Esto requiere tablas **InnoDB**, una clave única por `estado_vehiculo.id_vehiculo` para el upsert existente y SP sin `COMMIT` interno. Las transacciones de escritura usan aislamiento `SERIALIZABLE` para proteger la lectura de `conectado` frente a escrituras concurrentes. Un conflicto de integridad o entre transacciones devuelve `409`/`422`; los fallos de conexión devuelven `503`; no se reintenta automáticamente un POST para evitar duplicados. Si se pierde la conexión durante `COMMIT`, el resultado de la transacción puede ser incierto: consulta el historial antes de repetirla.
 
 `sp_obtener_historial` devuelve actualmente todo el historial ordenado; la API recorta la respuesta a diez. Reducir la lectura en MySQL requerirá una futura revisión del SP, que no se modifica aquí.
 
@@ -147,8 +152,19 @@ Las pruebas automatizadas usan dobles explícitos: validan contratos HTTP, auten
 
 El diagnóstico local consulta firmas de SP, motores, índice único, control transaccional interno, estado y secuencia sin modificar datos. Requiere tu contraseña y permisos de lectura/ejecución y metadatos. No cambia el esquema si detecta un problema; informa lo que debe revisarse.
 
-Quedan pendientes para la integración final estos trece SP: `sp_crear_vehiculo`, `sp_obtener_vehiculos`, `sp_actualizar_vehiculo`, `sp_eliminar_vehiculo`, `sp_crear_comando`, `sp_actualizar_comando`, `sp_eliminar_comando`, `sp_crear_demo`, `sp_actualizar_demo`, `sp_eliminar_demo`, `sp_agregar_movimiento_demo`, `sp_actualizar_movimiento_demo`, `sp_eliminar_movimiento_demo`. Sus parámetros deben consultarse antes de implementar endpoints; el diagnóstico muestra sus firmas disponibles sin ejecutarlos.
+## APIs de administración y cobertura de los 21 SP
+
+Las 13 operaciones pendientes ya están implementadas bajo `/admin`: crear/listar/actualizar/eliminar vehículos; crear/actualizar/eliminar comandos y DEMO; agregar/actualizar/eliminar movimientos de DEMO. Se incluyen cinco consultas auxiliares para inspeccionar los recursos. Swagger documenta **22 operaciones HTTP en total**, además del WebSocket.
+
+Consulta [la guía de administración](docs/ADMINISTRACION.md) para las rutas, cuerpos, colección Postman y precauciones de las eliminaciones físicas; [la correspondencia de procedimientos](docs/PROCEDIMIENTOS.md) relaciona los 21 SP con sus endpoints. Todas las operaciones `/admin`, incluidas las lecturas, requieren Bearer Token. La colección original conserva exactamente los tres escenarios de entrega; la colección de administración es auxiliar.
+
+No se permite modificar un vehículo ni su catálogo mientras tenga una DEMO activa. La administración permite consultar y reactivar registros inactivos. Los movimientos HTTP y las ejecuciones DEMO mantienen sus validaciones de actividad originales. Agregar o actualizar un paso exige un comando del mismo vehículo; ejecutar la DEMO vuelve a exigir que esté activo.
+
+Los SP `sp_eliminar_*` ejecutan `DELETE` físico. No se convierten en desactivaciones ni se modifican sus reglas: los efectos sobre registros relacionados dependen de las llaves foráneas de tu MySQL. El diagnóstico ahora verifica las **21 firmas**, los seis motores y muestra las reglas `ON DELETE`/`ON UPDATE` de solo lectura. Las pruebas nuevas automatizadas usan SP simulados y no borran datos reales.
+
 
 Para Amazon RDS se podrá cambiar la configuración de conexión, pero antes harán falta TLS, permisos de red y revisión del entorno. Esta etapa no crea recursos AWS ni despliega públicamente la API. Versionar el código en GitHub no inicia un servidor.
 
 Referencias técnicas consultadas: [WebSockets en FastAPI](https://fastapi.tiangolo.com/advanced/websockets/), [parámetros de callproc](https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-callproc.html) y [confirmación de transacciones en Connector/Python](https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlconnection-commit.html).
+
+Para recuperar el ID de un paso recién agregado, la API consulta LAST_INSERT_ID() en la misma conexión que llamó al SP, conforme a [la documentación de MySQL](https://dev.mysql.com/doc/refman/8.4/en/stored-routines-last-insert-id.html).

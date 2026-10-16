@@ -42,7 +42,7 @@ El servidor temporal terminó al finalizar. No quedó un servidor de comprobaci�
 
 ## Lo que requiere MySQL real
 
-El estudiante reportó aprobados los tres escenarios de la primera etapa en Postman. **La ampliación CRUD todavía requiere comprobación manual contra su MySQL.** No se ejecutaron altas, actualizaciones ni eliminaciones reales durante este trabajo.
+El 16 de octubre de 2026, el estudiante confirmó que **todas las pruebas locales funcionaron**, incluidas las de administración en Postman. Esta validación contra MySQL real fue realizada por el estudiante; el agente no ejecutó altas, actualizaciones ni eliminaciones reales durante las comprobaciones automatizadas.
 
 El diagnóstico actualizado consulta las 21 firmas con sus tipos, los motores InnoDB de las seis tablas, la clave única del estado, posibles COMMIT internos y las reglas reales ON DELETE/ON UPDATE. Se probó con metadatos simulados; debe ejecutarse personalmente con la configuración local para confirmar su esquema vigente.
 
@@ -56,4 +56,12 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 
 Consulta `docs/ADMINISTRACION.md` antes de ejecutar la colección auxiliar. Los tres escenarios originales documentan la validación inicial del control; el CRUD completa la comprobación del conjunto. Según la aclaración del alcance final, estas mismas APIs se ejecutarán en EC2 y se conectarán a RDS después de validar su funcionamiento local. Ese despliegue sigue pendiente. La aceptación de Postman en lugar de Thunder Client sigue pendiente del profesor.
 
-No se cambió el esquema ni se leyeron/imprimieron contraseñas en las salidas. No se modificó `.env`, no se crearon recursos AWS ni se desplegó la API públicamente. Esta ampliación queda local y no se subió automáticamente a GitHub.
+No se cambió el esquema ni se leyeron/imprimieron contraseñas en las salidas. No se modificó `.env`, no se crearon recursos AWS ni se desplegó la API públicamente.
+
+## Preparación para EC2 Windows y RDS — 16 de octubre de 2026
+
+El estudiante confirmó Windows Server y RDS ya preparado. Se añadió `MYSQL_SSL_CA`: cuando tiene valor, exige validar el certificado y la identidad del servidor; una ruta relativa se resuelve desde la raíz del proyecto. La variable vacía conserva las opciones del laboratorio local. No se reintenta sin verificación si el driver rechaza TLS.
+
+Se agregaron cuatro pruebas para compatibilidad local, resolución de la ruta y opciones de verificación, bloqueo por CA inexistente y rechazo TLS sin reintento ni exposición del error privado. **Las 50 pruebas automatizadas pasaron** con MySQL simulado. No se ha validado todavía el certificado real de RDS ni ejecutado la aplicación en Windows.
+
+La guía `docs/AWS_WINDOWS.md` documenta instalación, configuración privada, certificado oficial, conectividad, arranque, pruebas remotas y ejecución persistente. Estos cambios de preparación permanecen locales hasta publicarlos; las etiquetas `v1.1` y `v1.2` se conservan. El despliegue y su validación siguen pendientes.

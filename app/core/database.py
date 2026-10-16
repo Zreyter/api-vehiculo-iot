@@ -1,10 +1,11 @@
 from contextlib import contextmanager
 from collections.abc import Iterator
+from pathlib import Path
 
 import mysql.connector
 from mysql.connector.abstracts import MySQLConnectionAbstract
 
-from app.core.config import Settings
+from app.core.config import PROJECT_ROOT, Settings
 from app.core.errors import DatabaseUnavailable, ServiceError
 
 
@@ -18,6 +19,18 @@ class Database:
     def transaction(self, *, write: bool = False) -> Iterator[MySQLConnectionAbstract]:
         if not self.settings.mysql_password.get_secret_value():
             raise ServiceConfigError()
+        tls_options = {}
+        if self.settings.mysql_ssl_ca.strip():
+            ca_path = Path(self.settings.mysql_ssl_ca.strip()).expanduser()
+            if not ca_path.is_absolute():
+                ca_path = PROJECT_ROOT / ca_path
+            if not ca_path.is_file():
+                raise ServiceConfigError("Configura MYSQL_SSL_CA con un archivo de certificado CA existente.")
+            tls_options = {
+                "ssl_ca": str(ca_path),
+                "ssl_verify_cert": True,
+                "ssl_verify_identity": True,
+            }
         connection = None
         try:
             connection = mysql.connector.connect(
@@ -31,6 +44,7 @@ class Database:
                 read_timeout=5,
                 write_timeout=5,
                 use_pure=True,
+                **tls_options,
             )
             # Las lecturas de conectado participan en la transacción de escritura.
             connection.start_transaction(
@@ -71,6 +85,6 @@ class Database:
 
 
 class ServiceConfigError(DatabaseUnavailable):
-    def __init__(self):
+    def __init__(self, detail: str = "Configura MYSQL_PASSWORD personalmente en .env y reinicia la API."):
         super().__init__()
-        self.detail = "Configura MYSQL_PASSWORD personalmente en .env y reinicia la API."
+        self.detail = detail

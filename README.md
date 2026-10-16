@@ -9,8 +9,8 @@ API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehícul
 | Etapa | Qué se realiza | Estado documentado |
 | --- | --- | --- |
 | Desarrollo local | Implementar las APIs y conectarlas a MySQL local | Implementado |
-| Validación local | Comprobar movimientos, historial, DEMO y administración con la base real | Tres escenarios iniciales confirmados; completar la comprobación manual del CRUD |
-| Entrega en AWS | Ejecutar estas mismas APIs en EC2 y usar RDS como base de datos | Pendiente, después de la validación local |
+| Validación local | Comprobar movimientos, historial, DEMO y administración con la base real | Pruebas locales completas, según confirmación del estudiante del 16 de octubre de 2026 |
+| Entrega en AWS | Ejecutar estas mismas APIs en EC2 y usar RDS como base de datos | Pendiente de configuración y validación en AWS |
 
 La API permite:
 
@@ -76,6 +76,7 @@ El último comando solicita la contraseña MySQL sin mostrarla en pantalla. Si `
 | `MYSQL_USER` | Usuario de la base | Usuario configurado en MySQL; la plantilla usa `admin` |
 | `MYSQL_PASSWORD` | Contraseña de ese usuario | Configurar personalmente |
 | `MYSQL_DATABASE` | Nombre del esquema | `vehiculo_iot` |
+| `MYSQL_SSL_CA` | Ruta al certificado CA para verificar TLS e identidad del servidor MySQL | Vacío en local; certificado oficial de AWS en RDS |
 | `CONTROL_TOKEN` | Clave de acceso a los controles de la API | Valor aleatorio generado localmente |
 
 `.env` contiene la configuración real y está excluido de Git. `.env.example` es la plantilla sin secretos que se incluye en el repositorio. No compartas contraseñas o tokens en capturas ni exportaciones de Postman. Reinicia la API si cambias la configuración.
@@ -212,6 +213,8 @@ Los tres escenarios de control documentan la validación inicial; las comprobaci
 
 ## Etapa final: las mismas APIs en EC2 con RDS
 
+Para la instancia Windows Server y el RDS existentes, seguir la [guía de despliegue en Windows](docs/AWS_WINDOWS.md).
+
 Arquitectura de destino:
 
 ```text
@@ -224,16 +227,16 @@ Mismas APIs FastAPI en la instancia EC2
 Amazon RDS MySQL — esquema vehiculo_iot y 21 SP
 ```
 
-La migración conserva los endpoints, modelos, servicios y procedimientos. Cambia el lugar donde se ejecuta la aplicación y la configuración de conexión a la base. **El despliegue AWS todavía está pendiente** y se realizará después de confirmar las pruebas locales.
+La migración conserva los endpoints, modelos, servicios y procedimientos. Cambia el lugar donde se ejecuta la aplicación y la configuración de conexión a la base. **Las pruebas locales ya fueron confirmadas por el estudiante; el despliegue AWS todavía está pendiente.**
 
 Pasos previstos:
 
-1. Completar las pruebas de funcionamiento local del control y del CRUD.
+1. Conservar las evidencias de las pruebas locales de control y CRUD ya completadas.
 2. Preparar en RDS el esquema, las seis tablas, relaciones y los 21 SP compatibles con la base validada; revisar el script de importación y los permisos del usuario de aplicación.
 3. Copiar o clonar esta versión del proyecto en la instancia EC2, instalar Python y crear allí su propio entorno virtual y sus dependencias.
 4. Configurar la conectividad de EC2 a RDS. Para este escenario se usará la misma VPC y una regla de MySQL en el puerto configurado —normalmente 3306— cuyo origen sea el grupo de seguridad de EC2. Véase [la guía de conexión EC2–RDS de AWS](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/tutorial-connect-ec2-instance-to-rds-database.html).
 5. Crear la configuración privada de la instancia con `MYSQL_HOST` apuntando al **endpoint de RDS**, y definir allí puerto, esquema, usuario, contraseña y token. `127.0.0.1` seguiría apuntando a la propia instancia, no a RDS.
-6. Preparar y verificar TLS para la conexión MySQL, incluido el certificado de RDS. El adaptador actual se configuró para el laboratorio local; esa configuración TLS se incorporará y comprobará durante la migración. Referencia: [seguridad de conexiones MySQL en RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/securing-mysql-connections.html).
+6. Descargar en EC2 el [certificado CA oficial de RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html) y configurar `MYSQL_SSL_CA` con su ruta. El adaptador exige verificación del certificado y de la identidad del servidor cuando se configura esa variable; usar el endpoint DNS de RDS como `MYSQL_HOST`. Las rutas relativas del certificado se resuelven desde la raíz del proyecto. Un archivo inexistente o una verificación fallida impiden la conexión; no se reintenta sin verificación. Dejar esta variable vacía conserva la configuración del laboratorio local. La conexión TLS real a RDS debe comprobarse desde EC2. Referencia: [seguridad de conexiones MySQL en RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/securing-mysql-connections.html).
 7. Configurar la ejecución persistente de la API según el sistema operativo de la instancia, su punto de acceso HTTP/WebSocket y HTTPS/WSS. Mantener un solo proceso mientras la coordinación siga en memoria. Revisar el acceso al historial, que actualmente es una lectura local sin token, antes de publicar el servicio.
 8. Repetir los escenarios de control y CRUD desde el cliente contra la API de EC2, comprobando que los datos se leen/escriben en RDS y que DEMO no modifica el historial.
 

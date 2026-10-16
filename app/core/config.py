@@ -16,4 +16,5 @@ class Settings(BaseSettings):
     mysql_user: str = "admin"
     mysql_password: SecretStr = SecretStr("")
     mysql_database: str = "vehiculo_iot"
+    mysql_ssl_ca: str = ""
     control_token: SecretStr = SecretStr("")

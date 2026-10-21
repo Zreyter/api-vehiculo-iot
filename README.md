@@ -1,8 +1,18 @@
-# API de vehículo IoT
+# API de vehículo IoT — versión 1.4
 
 API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehículo IoT, registrar movimientos individuales y transmitir secuencias DEMO. El proyecto corresponde a la actividad **2.5: APIs para IoT en entorno Dev** e integra **21 procedimientos almacenados** mediante **22 operaciones HTTP** y un canal WebSocket por vehículo.
 
-**El entregable final será esta misma API ejecutándose en una instancia Amazon EC2 y conectándose desde esa instancia a MySQL en Amazon RDS.** Primero se comprueba su funcionamiento con MySQL local; después se configura y valida el despliegue en AWS.
+**Versión 1.4: funcionamiento en AWS demostrado y confirmado por el estudiante al cierre de esta entrega, el 21 de octubre de 2026.** La API se ejecuta en Amazon EC2 con Windows Server y utiliza MySQL en Amazon RDS. El repositorio incluye el panel web integrado, las colecciones de Postman y las guías de despliegue y operación. Esta confirmación corresponde a la aplicación y su conexión a la base de datos; la integración física del ESP8266 sigue pendiente.
+
+## Panel web en la misma instancia
+
+El panel integrado está disponible en `/panel/` al ejecutar esta versión de la API. Usa el mismo `CONTROL_TOKEN` que Postman y permite administración, movimientos, DEMO, historial y eventos. Se sirve desde FastAPI en el mismo puerto, sin instalar dependencias adicionales.
+
+- **Panel local:** [http://localhost:8000/panel/](http://localhost:8000/panel/).
+- **Panel en EC2:** `http://<IP_PUBLICA_EC2>:8000/panel/`; usa la dirección vigente de la instancia.
+- **Conexión:** pulsa **Conectar API**, introduce el token de EC2 y selecciona el vehículo.
+
+El navegador utiliza las rutas HTTP existentes y el canal autenticado `/panel/ws/vehiculos/{id_vehiculo}` para recibir los mismos eventos que Postman. Consulta [cómo actualizar EC2 Windows y abrir el panel](docs/PANEL_AWS.md).
 
 ## Alcance y etapas
 
@@ -10,7 +20,7 @@ API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehícul
 | --- | --- | --- |
 | Desarrollo local | Implementar las APIs y conectarlas a MySQL local | Implementado |
 | Validación local | Comprobar movimientos, historial, DEMO y administración con la base real | Pruebas locales completas, según confirmación del estudiante del 16 de octubre de 2026 |
-| Entrega en AWS | Ejecutar estas mismas APIs en EC2 y usar RDS como base de datos | Pendiente de configuración y validación en AWS |
+| Entrega en AWS | Ejecutar estas mismas APIs en EC2 y usar RDS como base de datos | Funcionamiento demostrado y confirmado por el estudiante para v1.4 |
 
 La API permite:
 
@@ -28,6 +38,8 @@ Los eventos representan operaciones de software y cambios confirmados en la base
 | --- | --- |
 | `v1.1` | Movimiento individual, historial y WebSocket DEMO con inicio/cancelación |
 | `v1.2` | Integración de los 21 SP y operaciones de administración |
+| `v1.3` | Preparación para EC2 Windows y conexión TLS con RDS |
+| `v1.4` | Funcionamiento en AWS confirmado e incorporación del panel web integrado con autenticación y eventos en tiempo real |
 
 ## Requisitos para ejecutar localmente
 
@@ -186,11 +198,11 @@ python -m pip install -r requirements-dev.txt
 python -m unittest discover -v
 ```
 
-La última verificación documentada aprobó **46 pruebas**, con SP simulados, y ejercitó los scripts de la colección administrativa. Estas pruebas validan la aplicación, pero **no sustituyen la comprobación contra MySQL real**. Consulta [VALIDACION.md](VALIDACION.md) para el alcance y los resultados.
+La verificación de v1.4 aprobó **54 pruebas**, con repositorios/SP simulados. Incluye administración, movimientos, historial, DEMO, WebSocket, configuración TLS de MySQL y cuatro pruebas del panel integrado. Las pruebas del panel cubren archivos y rutas, autenticación y origen, eventos compartidos con Postman y finalización de DEMO sin historial adicional. Estas pruebas **no se conectan a AWS ni a MySQL real**. La validación del funcionamiento en EC2 con RDS fue demostrada por el estudiante. Consulta [VALIDACION.md](VALIDACION.md) para el alcance y los resultados.
 
 ### Pruebas manuales con Postman
 
-Las dos colecciones están en `postman/`. Importa la que corresponda y configura su variable `control_token` como valor local. Verifica que `base_url` sea `http://localhost:8000`. Los WebSocket se crean manualmente.
+Las dos colecciones están en `postman/`. Importa la que corresponda y configura su variable `control_token` como valor local. Para pruebas locales configura `base_url` como `http://localhost:8000`; para repetirlas en AWS utiliza `http://<IP_PUBLICA_EC2>:8000` y el token de esa instancia. Los WebSocket se crean manualmente, usando el mismo servidor y puerto que la API.
 
 **Control y transmisión — `actividad_2_5.postman_collection.json`:**
 
@@ -209,16 +221,16 @@ No ejecutes toda la carpeta DEMO automáticamente: el GET posterior debe esperar
 
 La colección administrativa captura IDs de registros nuevos `LAB_API_2_5`; sus variables empiezan vacías. Usa esos registros para comprobar CRUD y conserva los datos del vehículo real. Revisa la [guía administrativa](docs/ADMINISTRACION.md) antes de ejecutar la limpieza.
 
-Los tres escenarios de control documentan la validación inicial; las comprobaciones CRUD completan la revisión del conjunto de APIs antes del despliegue. **El entregable final comprende estas mismas APIs integradas, ejecutándose en AWS y conectadas a RDS.** La guía académica menciona Thunder Client; la aceptación de evidencias hechas con Postman debe confirmarse con el profesor.
+Los tres escenarios de control documentan la validación inicial; las comprobaciones CRUD completan la revisión del conjunto de APIs. **La entrega v1.4 registra que estas mismas APIs integradas ya demostraron su funcionamiento en AWS con RDS.** La guía académica menciona Thunder Client; la aceptación de evidencias hechas con Postman debe confirmarse con el profesor.
 
-## Etapa final: las mismas APIs en EC2 con RDS
+## Despliegue validado: las mismas APIs en EC2 con RDS
 
-Para la instancia Windows Server y el RDS existentes, seguir la [guía de despliegue en Windows](docs/AWS_WINDOWS.md).
+La API ya se ejecutó y demostró su funcionamiento en la instancia Windows Server con RDS, según la confirmación del estudiante para esta versión. Para reproducir la instalación, consulta la [guía de despliegue en Windows](docs/AWS_WINDOWS.md); para incorporar el panel a una instancia existente, utiliza la [guía del panel en AWS](docs/PANEL_AWS.md).
 
-Arquitectura de destino:
+Arquitectura de la entrega:
 
 ```text
-Postman / cliente
+Panel web / Postman / cliente
        │ HTTP y WebSocket (HTTPS/WSS al configurar TLS)
        ▼
 Mismas APIs FastAPI en la instancia EC2
@@ -227,9 +239,9 @@ Mismas APIs FastAPI en la instancia EC2
 Amazon RDS MySQL — esquema vehiculo_iot y 21 SP
 ```
 
-La migración conserva los endpoints, modelos, servicios y procedimientos. Cambia el lugar donde se ejecuta la aplicación y la configuración de conexión a la base. **Las pruebas locales ya fueron confirmadas por el estudiante; el despliegue AWS todavía está pendiente.**
+La migración conserva los endpoints, modelos, servicios y procedimientos. Cambia el lugar donde se ejecuta la aplicación y la configuración de conexión a la base. La confirmación de AWS se registra como resultado de la demostración del estudiante; las pruebas automatizadas locales se documentan por separado.
 
-Pasos previstos:
+Pasos para reproducir el despliegue y comprobar futuras actualizaciones:
 
 1. Conservar las evidencias de las pruebas locales de control y CRUD ya completadas.
 2. Preparar en RDS el esquema, las seis tablas, relaciones y los 21 SP compatibles con la base validada; revisar el script de importación y los permisos del usuario de aplicación.
@@ -240,7 +252,7 @@ Pasos previstos:
 7. Configurar la ejecución persistente de la API según el sistema operativo de la instancia, su punto de acceso HTTP/WebSocket y HTTPS/WSS. Mantener un solo proceso mientras la coordinación siga en memoria. Revisar el acceso al historial, que actualmente es una lectura local sin token, antes de publicar el servicio.
 8. Repetir los escenarios de control y CRUD desde el cliente contra la API de EC2, comprobando que los datos se leen/escriben en RDS y que DEMO no modifica el historial.
 
-El cliente se conectará a **la API de EC2**; será la API quien se conecte a **RDS**. Subir el repositorio a GitHub conserva el código, pero no despliega ni arranca el servidor por sí solo.
+El cliente se conecta a **la API de EC2**; la API se conecta a **RDS**. Subir el repositorio a GitHub conserva el código, pero no despliega ni arranca el servidor por sí solo.
 
 ## Organización del proyecto
 
@@ -250,13 +262,15 @@ app/
   models/        Modelos y validaciones Pydantic
   repositories/  Ejecución de SP y acceso a los datos
   services/      Reglas de negocio y coordinación de DEMO
-  api/           Endpoints HTTP y WebSocket
+  api/           Endpoints HTTP y WebSocket, incluidas las rutas del panel
+  panel/         Interfaz web integrada: HTML, CSS y JavaScript
   websocket/     Salas de clientes y envío de eventos
   main.py        Creación y ciclo de vida de la aplicación
 scripts/         Configuración de contraseña y diagnóstico de solo lectura
 postman/         Colecciones de control y administración
 tests/           Pruebas automatizadas con SP simulados
-docs/            Guía administrativa y contratos de los procedimientos
+docs/            Guías de administración, AWS, panel y contratos de los SP
+handwrittennotes/ Referencias y carpeta para evidencias de apuntes manuscritos
 ```
 
 La separación por clases mantiene configuración/conexión, repositorios, servicios, modelos y endpoints independientes. MySQL se ejecuta en hilos para no bloquear el bucle asíncrono. Cada unidad de trabajo libera su conexión y cursores; los valores SQL se enlazan, no se concatenan.

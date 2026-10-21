@@ -19,8 +19,8 @@ class WebSocketManager:
     def __init__(self):
         self.rooms: dict[int, set[Client]] = {}
 
-    async def connect(self, vehicle_id: int, socket: WebSocket, initial: Event) -> Client:
-        await socket.accept()
+    async def connect(self, vehicle_id: int, socket: WebSocket, initial: Event, *, subprotocol: str | None = None) -> Client:
+        await socket.accept(subprotocol=subprotocol)
         client = Client(socket)
         client.queue.put_nowait(initial.model_dump(mode="json"))
         self.rooms.setdefault(vehicle_id, set()).add(client)

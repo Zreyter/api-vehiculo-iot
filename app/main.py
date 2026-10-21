@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes import router
 from app.api.catalog_routes import router as catalog_router
+from app.api.panel_routes import router as panel_router
 from app.core.config import Settings
 from app.core.database import Database
 from app.core.errors import ServiceError
@@ -35,8 +36,8 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
         await manager.close()
 
     application = FastAPI(
-        title="API Vehículo IoT — Actividad 2.5", version="0.2.0",
-        description="Laboratorio local con los 21 SP: administración de vehículos, comandos y DEMO; movimiento individual, historial y transmisión WebSocket. Eventos lógicos; ESP8266 todavía no integrado.",
+        title="API Vehículo IoT — Actividad 2.5", version="1.4.0",
+        description="API con los 21 SP y panel web integrado; funcionamiento en EC2 con RDS confirmado para v1.4. Administración de vehículos, comandos y DEMO; movimiento individual, historial y transmisión WebSocket. Eventos lógicos; ESP8266 todavía no integrado.",
         lifespan=lifespan,
     )
     application.state.settings = settings
@@ -51,6 +52,7 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
 
     application.include_router(router)
     application.include_router(catalog_router)
+    application.include_router(panel_router)
     return application
 
 

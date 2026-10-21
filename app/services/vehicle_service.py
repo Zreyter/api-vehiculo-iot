@@ -28,8 +28,11 @@ class VehicleService:
     async def history(self, vehicle_id: int, limit: int):
         return await asyncio.to_thread(self.repository.history, vehicle_id, limit)
 
-    async def connect(self, vehicle_id: int, socket):
+    async def connect(self, vehicle_id: int, socket, *, subprotocol: str | None = None):
         # Snapshot + suscripción son atómicos respecto a los movimientos de esta API.
         async with self.coordinator.lock(vehicle_id):
             state = await asyncio.to_thread(self.repository.snapshot, vehicle_id)
-            return await self.manager.connect(vehicle_id, socket, state_event("estado", vehicle_id, state))
+            return await self.manager.connect(
+                vehicle_id, socket, state_event("estado", vehicle_id, state),
+                subprotocol=subprotocol,
+            )

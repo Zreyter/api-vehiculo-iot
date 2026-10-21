@@ -1,5 +1,17 @@
 # Validación — Actividad 2.5, integración de los 21 SP
 
+## Versión 1.4 — 21 de octubre de 2026
+
+El estudiante confirmó que la API ya demostró su funcionamiento en Amazon EC2 con Windows Server y MySQL en Amazon RDS. Este resultado actualiza el estado de AWS que aparecía como pendiente en los registros históricos siguientes. No implica confirmación de ejecución física del ESP8266 ni una nueva comprobación del certificado real de RDS durante esta revisión.
+
+La entrega incorpora el panel web en `/panel/`, sus archivos HTML/CSS/JavaScript y el canal autenticado `/panel/ws/vehiculos/{id_vehiculo}`. Comparte servicios y eventos con Postman. OpenAPI identifica la aplicación como `1.4.0` y la versión del repositorio es `v1.4`.
+
+Se ejecutó `python -m unittest discover -v` desde `.venv-lab`, con Python 3.12.3: **54 pruebas aprobadas**. Las cuatro pruebas nuevas del panel verifican archivos/rutas y contrato existente, autenticación/origen/vehículo, eventos compartidos con Postman y finalización de DEMO sin añadir historial. Se mantienen las pruebas de administración, transacciones, coordinación y configuración TLS.
+
+Estas pruebas usan repositorios y SP simulados; no se conectan a AWS ni a MySQL real. La confirmación del funcionamiento en AWS procede de la demostración del estudiante. Starlette sigue emitiendo el aviso de deprecación del cliente de pruebas, sin fallos en la suite.
+
+## Registro histórico de la validación inicial
+
 Fecha: 14 de octubre de 2026. Versión de aplicación: 0.2.0.
 
 ## Alcance

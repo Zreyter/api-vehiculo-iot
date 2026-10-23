@@ -39,6 +39,8 @@ class DemoService:
         async with self.coordinator.lock(vehicle_id):
             if self.closing:
                 raise ServiceError(503, "El servidor está cerrando.")
+            if self.coordinator.remote_busy(vehicle_id):
+                raise ServiceError(409, "Desactiva la conducción WiFi y espera sus registros antes de iniciar una DEMO.")
             if vehicle_id in self.coordinator.active:
                 raise ServiceError(409, "Ya hay una DEMO activa para este vehículo.")
             steps, state = await asyncio.to_thread(self.repository.demo_plan, vehicle_id, demo_id)

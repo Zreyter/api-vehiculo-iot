@@ -77,3 +77,12 @@ class ConcurrencyTests(unittest.IsolatedAsyncioTestCase):
         await self.demos.cancel(1)
         self.assertIn(2, self.coordinator.active)
         await self.demos.cancel(2)
+
+    async def test_remote_controller_or_pending_log_blocks_legacy_writes(self):
+        for remote, pending in ((True,0),(False,1)):
+            self.coordinator.remote = {1:object()} if remote else {}
+            self.coordinator.device_pending[1] = pending
+            with self.assertRaises(ServiceError):
+                await self.vehicles.move(1,MovementRequest(id_comando=102))
+            with self.assertRaises(ServiceError):
+                await self.demos.start(1,1)

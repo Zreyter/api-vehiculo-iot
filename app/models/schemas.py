@@ -53,6 +53,7 @@ class Event(BaseModel):
     pausa_ms: int | None = None
     mensaje: str | None = None
     ejecucion_fisica_confirmada: bool = False
+    salidas_aplicadas_confirmadas: bool = False
 
 
 def state_event(kind: str, vehicle_id: int, state: dict | None, **kwargs) -> Event:

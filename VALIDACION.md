@@ -1,5 +1,16 @@
 # Validación — Actividad 2.5, integración de los 21 SP
 
+## Versión 1.5 — 23 de octubre de 2026
+
+OpenAPI identifica la aplicación como `1.5.0`; la etiqueta del repositorio es `v1.5`. Se añaden Conducción con teclado y mando personalizables, el firmware ESP8266 WiFi/serial y cinco operaciones HTTP de control más el WebSocket autenticado del dispositivo.
+
+- **80 pruebas Python aprobadas** con `python -m unittest discover -s tests -v` y Python 3.13.
+- **15 pruebas JavaScript aprobadas** con `node --test tests/test_driving.js`.
+- Firmware compilado para `esp8266:esp8266:nodemcuv2`, Core 3.1.2, WebSockets 2.7.2, ESPAsyncTCP 1.2.4 y ArduinoJson 7.4.3.
+- Recorridos locales del navegador con la API real y MySQL/dispositivo simulados: mantener/soltar, pulsos, encendido, prioridad serial, vencimiento de sesión, cambio de sección e historial.
+
+Se verifican autenticación, exclusión de controles, permisos efímeros, confirmación de salidas y registro diferido sin bloquear la parada. Las pruebas automatizadas usan simuladores y no validan AWS, RDS ni movimiento físico. Falta actualizar esta integración en EC2, cargar la placa y comprobar el carro real. Se conservan `.env`, certificados y entorno virtual de la copia RDS; las credenciales WiFi se generan en `config_carro.h`, excluido de Git.
+
 ## Versión 1.4 — 21 de octubre de 2026
 
 El estudiante confirmó que la API ya demostró su funcionamiento en Amazon EC2 con Windows Server y MySQL en Amazon RDS. Este resultado actualiza el estado de AWS que aparecía como pendiente en los registros históricos siguientes. No implica confirmación de ejecución física del ESP8266 ni una nueva comprobación del certificado real de RDS durante esta revisión.

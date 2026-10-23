@@ -12,6 +12,8 @@ class VehicleService:
 
     async def move(self, vehicle_id: int, request: MovementRequest):
         async with self.coordinator.lock(vehicle_id):
+            if self.coordinator.remote_busy(vehicle_id):
+                raise ServiceError(409, "Desactiva la conducción WiFi y espera sus registros antes de usar movimientos individuales.")
             if vehicle_id in self.coordinator.active:
                 raise ServiceError(409, "Hay una DEMO activa. Cancélala antes de enviar un movimiento individual.")
             try:

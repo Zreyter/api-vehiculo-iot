@@ -43,13 +43,32 @@ class VehicleRepository(ProcedureRepository):
             # El SP confirmado ordena fecha_hora DESC, id_historial DESC.
             return self._call(connection, "sp_obtener_historial", (vehicle_id,))[:limit]
 
-    def apply(self, vehicle_id: int, command_id: int, origin: str | None) -> dict:
+    def device_catalog(self, vehicle_id: int) -> dict[int, int]:
+        with self.database.transaction() as connection:
+            self._vehicle(connection, vehicle_id)
+            result = {}
+            for command in self._commands(connection, vehicle_id).values():
+                try:
+                    code = int(command["codigo"])
+                except (TypeError, ValueError):
+                    continue
+                if str(command["codigo"]).strip() != str(code) or not 0 <= code <= 13:
+                    continue
+                if code in result:
+                    raise ServiceError(409, "Hay códigos repetidos en el catálogo del vehículo.")
+                result[code] = command["id_comando"]
+            return result
+
+    def apply_device(self, vehicle_id: int, command_id: int) -> dict:
+        return self.apply(vehicle_id, command_id, "Panel WiFi", device=True)
+
+    def apply(self, vehicle_id: int, command_id: int, origin: str | None, *, device=False) -> dict:
         """origin=None identifica DEMO: jamás se registra historial en ese caso."""
         with self.database.transaction(write=True) as connection:
             self._vehicle(connection, vehicle_id)
             command = self._command(self._commands(connection, vehicle_id), command_id)
             # DEMO solo se inicia por su endpoint, con secuencia real de MySQL.
-            if origin is not None and (
+            if origin is not None and not device and (
                 str(command.get("nombre", "")).upper() == "DEMO"
                 or str(command.get("codigo", "")).upper() == "DEMO"
             ):

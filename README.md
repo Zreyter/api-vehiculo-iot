@@ -1,8 +1,10 @@
-# API de vehículo IoT — versión 1.4
+# API de vehículo IoT — versión 1.5
 
-API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehículo IoT, registrar movimientos individuales y transmitir secuencias DEMO. El proyecto corresponde a la actividad **2.5: APIs para IoT en entorno Dev** e integra **21 procedimientos almacenados** mediante **22 operaciones HTTP** y un canal WebSocket por vehículo.
+API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehículo IoT, registrar movimientos individuales y transmitir secuencias DEMO. El proyecto corresponde a la actividad **2.5: APIs para IoT en entorno Dev** e integra **21 procedimientos almacenados** conserva las **22 operaciones HTTP** anteriores y añade **cinco operaciones HTTP** para el control del ESP8266, además de los canales WebSocket de eventos y dispositivo.
 
-**Versión 1.4: funcionamiento en AWS demostrado y confirmado por el estudiante al cierre de esta entrega, el 21 de octubre de 2026.** La API se ejecuta en Amazon EC2 con Windows Server y utiliza MySQL en Amazon RDS. El repositorio incluye el panel web integrado, las colecciones de Postman y las guías de despliegue y operación. Esta confirmación corresponde a la aplicación y su conexión a la base de datos; la integración física del ESP8266 sigue pendiente.
+**Versión 1.5:** incorpora Conducción con teclado y mando personalizables, firmware ESP8266 para WiFi/serial y un canal autenticado con confirmación de salidas. La versión de OpenAPI es `1.5.0`. Consulta el [registro de validación](VALIDACION.md).
+
+**Antecedente v1.4: funcionamiento en AWS demostrado y confirmado por el estudiante al cierre de esta entrega, el 21 de octubre de 2026.** La API se ejecuta en Amazon EC2 con Windows Server y utiliza MySQL en Amazon RDS. El repositorio incluye el panel web integrado, las colecciones de Postman y las guías de despliegue y operación. Esta confirmación corresponde a la aplicación y su conexión a la base de datos; la integración física del ESP8266 sigue pendiente.
 
 ## Panel web en la misma instancia
 
@@ -13,6 +15,18 @@ El panel integrado está disponible en `/panel/` al ejecutar esta versión de la
 - **Conexión:** pulsa **Conectar API**, introduce el token de EC2 y selecciona el vehículo.
 
 El navegador utiliza las rutas HTTP existentes y el canal autenticado `/panel/ws/vehiculos/{id_vehiculo}` para recibir los mismos eventos que Postman. Consulta [cómo actualizar EC2 Windows y abrir el panel](docs/PANEL_AWS.md).
+
+## Nueva sección: Conducción
+
+El panel incorpora los 13 comandos del control serial original, movimientos mantenidos y pulsaciones, asignaciones de teclado guardadas en el navegador y soporte para mando Xbox mediante Gamepad API. Conserva la paleta del panel y relaciona cada acción por su código real. Permite control del ESP8266 por WiFi o registro de software mediante las rutas anteriores. Consulta la [guía de Conducción](docs/CONDUCCION.md) para personalizar controles y conocer el requisito HTTPS del mando remoto; solo el modo de registro requiere preparar el comando 0 en MySQL.
+
+Esta integración WiFi se validó localmente con MySQL, dispositivo y mando simulados; todavía debe actualizarse en EC2 y probarse con la placa. El canal del dispositivo confirma salidas aplicadas por el firmware; no mide movimiento mecánico mediante sensores.
+
+## ESP8266: WiFi y serial
+
+El proyecto incluye el [firmware ESP8266 WiFi/serial](firmware/ControlCarroWiFi/ControlCarroWiFi.ino), el canal autenticado de dispositivo y la adaptación de Conducción. Conserva los pines originales, 9600 baudios y comandos 0–13; añade prioridad serial, permisos de activación efímeros y watchdog local.
+
+Sigue la [guía de configuración, actualización de EC2 y carga del firmware](docs/ESP8266_WIFI_SERIAL.md). El asistente `python scripts/configurar_esp8266.py` genera la configuración privada sin modificar `.env`. La liberación WiFi no requiere agregar el código 0 en MySQL. La API y el navegador se validaron con dispositivos/MySQL simulados y el sketch compiló para NodeMCU/ESP8266; falta probar la placa y el carro reales.
 
 ## Alcance y etapas
 
@@ -30,7 +44,7 @@ La API permite:
 - Consultar un máximo de diez registros recientes del historial.
 - Iniciar o cancelar una DEMO y transmitir sus eventos a varios clientes WebSocket.
 
-Los eventos representan operaciones de software y cambios confirmados en la base de datos. **Todavía no confirman que el ESP8266 o el vehículo hayan ejecutado un movimiento físico.**
+Los eventos de las rutas anteriores representan operaciones de software y cambios confirmados en la base de datos. El nuevo canal del dispositivo distingue la confirmación de salidas de la confirmación de registro en RDS. **Todavía no confirman que el ESP8266 o el vehículo hayan ejecutado un movimiento físico.**
 
 ### Versiones del repositorio
 
@@ -40,6 +54,7 @@ Los eventos representan operaciones de software y cambios confirmados en la base
 | `v1.2` | Integración de los 21 SP y operaciones de administración |
 | `v1.3` | Preparación para EC2 Windows y conexión TLS con RDS |
 | `v1.4` | Funcionamiento en AWS confirmado e incorporación del panel web integrado con autenticación y eventos en tiempo real |
+| `v1.5` | Conducción con teclado/mando, firmware ESP8266 WiFi/serial, prioridad serial, watchdog y confirmación de salidas |
 
 ## Requisitos para ejecutar localmente
 
@@ -90,6 +105,7 @@ El último comando solicita la contraseña MySQL sin mostrarla en pantalla. Si `
 | `MYSQL_DATABASE` | Nombre del esquema | `vehiculo_iot` |
 | `MYSQL_SSL_CA` | Ruta al certificado CA para verificar TLS e identidad del servidor MySQL | Vacío en local; certificado oficial de AWS en RDS |
 | `CONTROL_TOKEN` | Clave de acceso a los controles de la API | Valor aleatorio generado localmente |
+| `DEVICE_TOKEN` | Token opcional exclusivo del ESP8266 | Vacío utiliza `CONTROL_TOKEN` |
 
 `.env` contiene la configuración real y está excluido de Git. `.env.example` es la plantilla sin secretos que se incluye en el repositorio. No compartas contraseñas o tokens en capturas ni exportaciones de Postman. Reinicia la API si cambias la configuración.
 
@@ -196,9 +212,10 @@ Las desconexiones se retiran de la sala. Cada cliente tiene una cola de 64 event
 ```bash
 python -m pip install -r requirements-dev.txt
 python -m unittest discover -v
+node --test tests/test_driving.js
 ```
 
-La verificación de v1.4 aprobó **54 pruebas**, con repositorios/SP simulados. Incluye administración, movimientos, historial, DEMO, WebSocket, configuración TLS de MySQL y cuatro pruebas del panel integrado. Las pruebas del panel cubren archivos y rutas, autenticación y origen, eventos compartidos con Postman y finalización de DEMO sin historial adicional. Estas pruebas **no se conectan a AWS ni a MySQL real**. La validación del funcionamiento en EC2 con RDS fue demostrada por el estudiante. Consulta [VALIDACION.md](VALIDACION.md) para el alcance y los resultados.
+La verificación de v1.5 aprobó **80 pruebas Python y 15 pruebas JavaScript**, con repositorios/SP y dispositivos simulados. Incluye los controles anteriores, autenticación, sesiones exclusivas, prioridad serial, confirmación de salidas, registro diferido y lógica de conducción. El firmware compiló para NodeMCU con ESP8266 Core 3.1.2. Estas pruebas **no se conectan a AWS ni a MySQL real**. La validación anterior del funcionamiento en EC2 con RDS fue demostrada por el estudiante; la integración física de v1.5 sigue pendiente. Consulta [VALIDACION.md](VALIDACION.md) para el alcance y los resultados.
 
 ### Pruebas manuales con Postman
 

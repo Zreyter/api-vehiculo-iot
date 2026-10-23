@@ -6,3 +6,8 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+firmware/**/config_carro.h
+firmware/**/build/
+*.bin
+*.elf
+*.map

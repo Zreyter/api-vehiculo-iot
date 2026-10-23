@@ -18,6 +18,8 @@ class CatalogService:
         if vehicle_id is None:  # Crear un vehículo todavía no tiene ID que bloquear.
             return await asyncio.to_thread(method, *args)
         async with self.coordinator.lock(vehicle_id):
+            if self.coordinator.remote_busy(vehicle_id):
+                raise ServiceError(409, "Desactiva la conducción WiFi y espera sus registros antes de modificar el catálogo.")
             if vehicle_id in self.coordinator.active:
                 raise ServiceError(409, "Cancela o espera a que termine la DEMO antes de modificar este vehículo o su catálogo.")
             result = await asyncio.to_thread(method, vehicle_id, *args)

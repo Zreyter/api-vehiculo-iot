@@ -18,3 +18,4 @@ class Settings(BaseSettings):
     mysql_database: str = "vehiculo_iot"
     mysql_ssl_ca: str = ""
     control_token: SecretStr = SecretStr("")
+    device_token: SecretStr = SecretStr("")

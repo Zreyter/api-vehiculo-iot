@@ -29,7 +29,7 @@ class PanelTests(unittest.TestCase):
         self.assertIn('src="./panel.js"', page.text)
         self.assertIn('href="./panel.css"', page.text)
         self.assertIn("script-src 'self'", page.headers["content-security-policy"])
-        for path, content_type in [("panel.js", "javascript"), ("panel.css", "text/css")]:
+        for path, content_type in [("panel.js", "javascript"), ("panel.css", "text/css"), ("drive-controller.js", "javascript"), ("driving.js", "javascript"), ("remote-drive.js", "javascript")]:
             response = self.client.get("/panel/" + path)
             self.assertEqual(response.status_code, 200)
             self.assertIn(content_type, response.headers["content-type"])

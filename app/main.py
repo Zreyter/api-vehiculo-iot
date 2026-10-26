@@ -41,8 +41,8 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
         await manager.close()
 
     application = FastAPI(
-        title="API Vehículo IoT — Actividad 2.5", version="1.5.0",
-        description="Versión 1.5: panel de conducción con teclado y mando, firmware ESP8266 WiFi/serial y los 21 SP de MySQL. Administración de vehículos, comandos y DEMO; movimiento individual, historial y transmisión WebSocket. Canal autenticado ESP8266 WiFi/serial con confirmación de salidas; no confirma movimiento mediante sensores.",
+        title="API Vehículo IoT — Actividad 2.5", version="1.6.0",
+        description="Versión 1.6: aplicación de escritorio Windows, panel de conducción con teclado y mando, firmware ESP8266 WiFi/serial y los 21 SP de MySQL. Administración de vehículos, comandos y DEMO; movimiento individual, historial y transmisión WebSocket. Canal autenticado ESP8266 WiFi/serial con confirmación de salidas; no confirma movimiento mediante sensores.",
         lifespan=lifespan,
     )
     application.state.settings = settings

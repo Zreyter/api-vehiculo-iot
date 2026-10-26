@@ -1,10 +1,10 @@
-# API de vehículo IoT — versión 1.5
+# API de vehículo IoT — versión 1.6
 
-API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehículo IoT, registrar movimientos individuales y transmitir secuencias DEMO. El proyecto corresponde a la actividad **2.5: APIs para IoT en entorno Dev** e integra **21 procedimientos almacenados** conserva las **22 operaciones HTTP** anteriores y añade **cinco operaciones HTTP** para el control del ESP8266, además de los canales WebSocket de eventos y dispositivo.
+API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehículo IoT, registrar movimientos individuales y transmitir secuencias DEMO. El proyecto corresponde a la actividad **2.5: APIs para IoT en entorno Dev** e integra **21 procedimientos almacenados**; conserva las **22 operaciones HTTP** anteriores y añade **cinco operaciones HTTP** para el control del ESP8266, además de los canales WebSocket de eventos y dispositivo.
 
-**Versión 1.5:** incorpora Conducción con teclado y mando personalizables, firmware ESP8266 para WiFi/serial y un canal autenticado con confirmación de salidas. La versión de OpenAPI es `1.5.0`. Consulta el [registro de validación](VALIDACION.md).
+**Versión 1.6:** añade una aplicación portátil para Windows con la misma interfaz, teclado/mando, configuración del servidor y controles persistentes. Conserva el firmware ESP8266 WiFi/serial y su canal autenticado. La versión de OpenAPI es `1.6.0`. Consulta el [registro de validación](VALIDACION.md).
 
-**Antecedente v1.4: funcionamiento en AWS demostrado y confirmado por el estudiante al cierre de esta entrega, el 21 de octubre de 2026.** La API se ejecuta en Amazon EC2 con Windows Server y utiliza MySQL en Amazon RDS. El repositorio incluye el panel web integrado, las colecciones de Postman y las guías de despliegue y operación. Esta confirmación corresponde a la aplicación y su conexión a la base de datos; la integración física del ESP8266 sigue pendiente.
+**Antecedente v1.4: funcionamiento en AWS demostrado y confirmado por el estudiante al cierre de esta entrega, el 21 de octubre de 2026.** La API se ejecuta en Amazon EC2 con Windows Server y utiliza MySQL en Amazon RDS. El repositorio incluye el panel web integrado, las colecciones de Postman y las guías de despliegue y operación. Esta confirmación corresponde a la aplicación y su conexión a la base de datos. Posteriormente, el usuario confirmó en este chat el funcionamiento del ESP8266 con el carro real.
 
 ## Panel web en la misma instancia
 
@@ -20,13 +20,22 @@ El navegador utiliza las rutas HTTP existentes y el canal autenticado `/panel/ws
 
 El panel incorpora los 13 comandos del control serial original, movimientos mantenidos y pulsaciones, asignaciones de teclado guardadas en el navegador y soporte para mando Xbox mediante Gamepad API. Conserva la paleta del panel y relaciona cada acción por su código real. Permite control del ESP8266 por WiFi o registro de software mediante las rutas anteriores. Consulta la [guía de Conducción](docs/CONDUCCION.md) para personalizar controles y conocer el requisito HTTPS del mando remoto; solo el modo de registro requiere preparar el comando 0 en MySQL.
 
-Esta integración WiFi se validó localmente con MySQL, dispositivo y mando simulados; todavía debe actualizarse en EC2 y probarse con la placa. El canal del dispositivo confirma salidas aplicadas por el firmware; no mide movimiento mecánico mediante sensores.
+La integración WiFi se validó automáticamente con MySQL y dispositivo simulados. El usuario confirmó después su funcionamiento con el carro real mediante EC2. El canal del dispositivo confirma salidas aplicadas por el firmware; no mide movimiento mecánico mediante sensores.
 
 ## ESP8266: WiFi y serial
 
 El proyecto incluye el [firmware ESP8266 WiFi/serial](firmware/ControlCarroWiFi/ControlCarroWiFi.ino), el canal autenticado de dispositivo y la adaptación de Conducción. Conserva los pines originales, 9600 baudios y comandos 0–13; añade prioridad serial, permisos de activación efímeros y watchdog local.
 
-Sigue la [guía de configuración, actualización de EC2 y carga del firmware](docs/ESP8266_WIFI_SERIAL.md). El asistente `python scripts/configurar_esp8266.py` genera la configuración privada sin modificar `.env`. La liberación WiFi no requiere agregar el código 0 en MySQL. La API y el navegador se validaron con dispositivos/MySQL simulados y el sketch compiló para NodeMCU/ESP8266; falta probar la placa y el carro reales.
+Sigue la [guía de configuración, actualización de EC2 y carga del firmware](docs/ESP8266_WIFI_SERIAL.md). El asistente `python scripts/configurar_esp8266.py` genera la configuración privada sin modificar `.env`. La liberación WiFi no requiere agregar el código 0 en MySQL. La API y el navegador se validaron con dispositivos/MySQL simulados y el sketch compiló para NodeMCU/ESP8266; la prueba manual de la placa y el carro fue confirmada posteriormente por el usuario.
+
+## Aplicación para Windows
+
+**[Descargar Vehículo IoT 1.6 para Windows x64](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6/Vehiculo-IoT-1.6.0-Windows-x64.exe)** · [Release, instrucciones y SHA256](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6)
+
+
+La carpeta [`desktop`](desktop/README.md) contiene la aplicación portátil de Windows x64 con la misma interfaz: Conducción, teclado/mando, administración, historial y eventos. Se conecta a la API de EC2 y solicita el mismo `CONTROL_TOKEN`. La dirección del servidor es editable; las preferencias de control se conservan en el equipo.
+
+El ejecutable incluye su runtime y no necesita Python, Node.js ni Arduino IDE para abrirse. Para construirlo desde las fuentes utiliza `npm ci`, `npm test` y `npm run dist` dentro de `desktop`. Las credenciales y archivos privados quedan fuera del paquete.
 
 ## Alcance y etapas
 
@@ -55,6 +64,7 @@ Los eventos de las rutas anteriores representan operaciones de software y cambio
 | `v1.3` | Preparación para EC2 Windows y conexión TLS con RDS |
 | `v1.4` | Funcionamiento en AWS confirmado e incorporación del panel web integrado con autenticación y eventos en tiempo real |
 | `v1.5` | Conducción con teclado/mando, firmware ESP8266 WiFi/serial, prioridad serial, watchdog y confirmación de salidas |
+| `v1.6` | Aplicación portátil Windows x64 con las funciones del panel, controles persistentes y ejecutable descargable en GitHub Releases |
 
 ## Requisitos para ejecutar localmente
 

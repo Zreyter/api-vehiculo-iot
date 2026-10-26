@@ -1,5 +1,13 @@
 # Validación — Actividad 2.5, integración de los 21 SP
 
+## Versión 1.6 — 26 de octubre de 2026
+
+La aplicación de escritorio y OpenAPI se identifican como `1.6.0`; la etiqueta Git es `v1.6`. La release incluye el ejecutable portátil Windows x64, instrucciones de uso y checksum SHA256. Las fuentes reproducibles se encuentran en `desktop`.
+
+Se conservan las 80 pruebas Python y 15 de conducción JavaScript; se añaden ocho pruebas del adaptador HTTP/WebSocket del escritorio. Los recorridos en Electron verifican autenticación, eventos, administración, conducción con renovación, prioridad serial, liberación al cerrar y preferencias persistentes sin guardar el token. También se comprobó el arranque del ejecutable portátil. Las comprobaciones automatizadas utilizan MySQL y ESP8266 simulados.
+
+El usuario confirmó en este chat el funcionamiento de la integración WiFi con el carro real tras cargar el firmware y seleccionar WIFI por serial. Esa prueba manual es distinta de las confirmaciones del software: el firmware reporta salidas aplicadas, sin medir movimiento mediante sensores. No se incorpora un token de control, configuración WiFi ni credenciales de MySQL al ejecutable o a Git.
+
 ## Versión 1.5 — 23 de octubre de 2026
 
 OpenAPI identifica la aplicación como `1.5.0`; la etiqueta del repositorio es `v1.5`. Se añaden Conducción con teclado y mando personalizables, el firmware ESP8266 WiFi/serial y cinco operaciones HTTP de control más el WebSocket autenticado del dispositivo.

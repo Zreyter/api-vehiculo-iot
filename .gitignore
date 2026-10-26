@@ -11,3 +11,8 @@ firmware/**/build/
 *.bin
 *.elf
 *.map
+
+# Aplicación de escritorio: dependencias, panel generado y binarios.
+desktop/node_modules/
+desktop/dist/
+desktop/assets/panel/

@@ -94,3 +94,23 @@ test('el adaptador puede descartar una entrada soltada mientras se adquiría ses
   c.arm({commands:new Map([[0,100],[2,102]])});c.press(2,'W');await Promise.resolve();await Promise.resolve();
   assert.equal(options.stillWanted(),true);c.release('W');assert.equal(options.stillWanted(),false);unblock();await c.idle();
 });
+
+test('WiFi envía liberar antes de recibir el ACK de avance y descarta su respuesta tardía',async()=>{
+  let finish;
+  const s=setup(code=>code===2?new Promise(resolve=>finish=resolve):undefined);
+  s.target.transport='wifi';s.control.press(2,'W');await Promise.resolve();await Promise.resolve();
+  s.control.release('W');await Promise.resolve();await Promise.resolve();await Promise.resolve();
+  assert.deepEqual(s.codes(),[2,0]);
+  finish();await s.control.idle();assert.equal(s.control.snapshot().active,0);
+  assert.equal(s.control.snapshot().confirmed,true);
+});
+
+test('la parada WiFi tiene prioridad y un error antiguo no vuelve a enviar la orden',async()=>{
+  let fail;
+  const s=setup(code=>code===2?new Promise((resolve,reject)=>fail=reject):undefined);
+  s.target.transport='wifi';s.control.press(2,'W');await Promise.resolve();await Promise.resolve();
+  const stopped=s.control.halt();await Promise.resolve();await Promise.resolve();
+  assert.deepEqual(s.codes(),[2,0]);fail(Error('ACK antiguo perdido'));await stopped;
+  assert.equal(s.control.snapshot().active,0);assert.equal(s.control.snapshot().armed,false);
+  assert.deepEqual(s.errors,[]);
+});

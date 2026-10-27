@@ -181,6 +181,7 @@ class DeviceTests(unittest.IsolatedAsyncioTestCase):
     async def test_rejected_or_empty_permission_does_not_record_success(self):
         key = await self.acquire()
         self.socket.empty_permission = True
+        self.service.leases[1].prepared = None
         with self.assertRaises(ServiceError): await self.service.command(1, key, 2)
         self.assertEqual(self.repo.records, [])
         self.assertFalse(any(f['tipo']=='orden' for f in self.socket.frames))

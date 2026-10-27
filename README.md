@@ -1,4 +1,9 @@
-# API de vehículo IoT — versión 1.6
+# API de vehículo IoT — versión 1.6.1
+
+> **Versión histórica 1.6.1.** Se publica desde las fuentes y archivos originales conservados. La [versión más reciente es 1.6.4](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.4), que incluye correcciones posteriores para pulsaciones rápidas y sesiones de conducción.
+
+[Descargar exe 1.6.1](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.1/Vehiculo-IoT-1.6.1-Windows-x64.exe) · [Descargar actualización EC2](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.1/Actualizacion-latencia-1.6.1.zip) · [Release v1.6.1](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.1).
+
 
 API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehículo IoT, registrar movimientos individuales y transmitir secuencias DEMO. El proyecto corresponde a la actividad **2.5: APIs para IoT en entorno Dev** e integra **21 procedimientos almacenados**; conserva las **22 operaciones HTTP** anteriores y añade **cinco operaciones HTTP** para el control del ESP8266, además de los canales WebSocket de eventos y dispositivo.
 

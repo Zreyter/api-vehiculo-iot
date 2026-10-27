@@ -37,8 +37,9 @@
   function createController({send, changed = () => {}, fault = () => {}, timer = setTimeout, cancel = clearTimeout}) {
     let armed = false, context = null, active = null, desired = null, pumping = null, confirmed = false;
     let pulse = null, pulseTimer = null, power = 'unknown', stopFailed = false;
+    let sending = null, revision = 0, priority = null;
     const pressed = new Map();
-    const snapshot = () => ({armed, active, confirmed, pending: !!pumping, pulse: pulse?.code ?? null, power, stopFailed});
+    const snapshot = () => ({armed, active, confirmed, pending: !!pumping || !!priority, pulse: pulse?.code ?? null, power, stopFailed});
     const notify = () => changed(snapshot());
     const latest = () => Array.from(pressed.values()).filter(x => x.held).at(-1)?.code ?? 0;
     function clearPulse() {
@@ -49,14 +50,29 @@
     function halt(reason = '') {
       armed = false; pressed.clear(); clearPulse();
       if (context) desired = 0;
+      if (context?.transport === 'wifi' && sending !== null && sending !== 0) priorityStop();
       notify(); pump();
       return idle();
     }
+    function priorityStop() {
+      if (priority || !context) return;
+      revision++;
+      const target = context;
+      priority = Promise.resolve().then(() => send(0, target, {priority:true})).then(receipt => {
+        active = 0; confirmed = receipt?.cancelado !== true; stopFailed = false;
+      }).catch(error => {
+        armed = false; pressed.clear(); clearPulse(); active = null; desired = null;
+        stopFailed = true; fault(error, true);
+      }).finally(() => { priority = null; notify(); pump(); });
+    }
     async function run() {
       while (desired !== null && desired !== active) {
-        const code = desired, target = context, currentPulse = pulse;
+        if (priority) { await priority; continue; }
+        const code = desired, target = context, currentPulse = pulse, ticket = revision;
+        sending = code;
         try {
           const receipt = await send(code, target, {stillWanted: () => armed && desired === code});
+          if (ticket !== revision) continue;
           active = code; confirmed = receipt?.cancelado !== true; stopFailed = false;
           if (currentPulse && pulse === currentPulse && code === pulse.code) {
             pulseTimer = timer(() => {
@@ -68,6 +84,7 @@
             }, receipt?.duracion_ms ?? currentPulse.duration);
           }
         } catch (error) {
+          if (ticket !== revision) continue;
           armed = false; pressed.clear(); clearPulse();
           // Una escritura fallida puede haber llegado al servidor. Intentar liberar
           // con el mismo vehículo y token; nunca continuar con entradas acumuladas.
@@ -75,6 +92,8 @@
           desired = code === 0 ? null : 0;
           stopFailed = code === 0;
           fault(error, stopFailed);
+        } finally {
+          sending = null;
         }
         notify();
       }
@@ -86,12 +105,12 @@
         if (desired !== null && desired !== active) pump();
       });
     }
-    async function idle() { while (pumping) await pumping; }
+    async function idle() { while (pumping || priority) await (pumping || priority); }
     return {
       snapshot, idle, halt, currentContext: () => context,
       setPower(value) { if (!armed && !pumping) { power = value; notify(); } },
       arm(target) {
-        if (armed || pumping || !target.commands.has(0)) return false;
+        if (armed || pumping || priority || !target.commands.has(0)) return false;
         context = target; active = null; desired = null; stopFailed = false;
         pressed.clear(); armed = true; notify(); return true;
       },
@@ -108,7 +127,11 @@
         const action = pressed.get(source);
         if (!action) return;
         pressed.delete(source);
-        if (action.held && !pulse) { desired = latest(); pump(); }
+        if (action.held && !pulse) {
+          desired = latest();
+          if (context?.transport === 'wifi' && desired === 0 && sending !== null && sending !== 0) priorityStop();
+          pump();
+        }
         notify();
       },
     };

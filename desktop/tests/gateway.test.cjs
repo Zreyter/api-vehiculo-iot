@@ -88,3 +88,13 @@ test('WebSocket rechaza origen ajeno',async t=>{
     request.on('error',reject);request.on('response',response=>{response.resume();resolve(response.statusCode);});request.end();
   });assert.equal(status,403);
 });
+
+test('reutiliza la conexión con EC2 y no repite una escritura fallida',async t=>{
+  const {gateway,received,api}=await fixture(t);
+  let connections=0;api.on('connection',()=>connections++);
+  for(let i=0;i<4;i++){
+    const response=await fetch(gateway.origin+'/admin/vehiculos');await response.text();
+  }
+  assert.equal(connections,1);assert.equal(received[0].headers.connection,'keep-alive');
+  assert.equal(received.length,4);
+});

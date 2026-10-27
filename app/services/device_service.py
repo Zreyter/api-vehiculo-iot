@@ -15,6 +15,7 @@ from app.models.schemas import state_event
 LEASE_SECONDS = .9
 DEVICE_TTL_MS = 800
 ACK_SECONDS = .6
+PREPARED_SECONDS = .15  # La placa conserva su vencimiento independiente de 500 ms.
 
 
 @dataclass(eq=False)
@@ -29,6 +30,7 @@ class Device:
     sequence: int = 0
     pending: dict = field(default_factory=dict)
     tx: asyncio.Lock = field(default_factory=asyncio.Lock)
+    barrier: int = 0
 
 
 @dataclass(eq=False)
@@ -38,16 +40,35 @@ class Lease:
     key: str = field(default_factory=lambda: secrets.token_hex(16))
     deadline: float = field(default_factory=lambda: time.monotonic() + LEASE_SECONDS)
     command_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    prepared: tuple | None = None
+    preparing: asyncio.Task | None = None
+    generation: int = 0
+    initialized: bool = False
 
 
 class DeviceService:
-    def __init__(self, repository, manager, coordinator):
+    def __init__(self, repository, manager, coordinator, *, prepare_ahead=True):
         self.repository, self.manager, self.coordinator = repository, manager, coordinator
         self.devices = {}
         self.leases = coordinator.remote
         self.queues, self.workers, self.log_errors = {}, {}, {}
         self.watch = None
         self.closing = False
+        self.prepare_ahead = prepare_ahead
+        self.preparations = set()
+
+    def _invalidate(self, lease):
+        lease.generation += 1
+        lease.prepared = None
+        task, lease.preparing = lease.preparing, None
+        if task and task is not asyncio.current_task():
+            task.cancel()
+
+    def _retire(self, vehicle_id):
+        lease = self.leases.pop(vehicle_id, None)
+        if lease:
+            self._invalidate(lease)
+        return lease
 
     def start(self):
         if self.watch is None:
@@ -71,7 +92,7 @@ class DeviceService:
         async with device.tx:
             try:
                 await asyncio.wait_for(device.socket.send_json(payload), ACK_SECONDS)
-            except (Exception, asyncio.CancelledError):
+            except Exception:
                 device.ready = False
                 raise
 
@@ -103,24 +124,24 @@ class DeviceService:
             elif message.get("encendido_estimado") is None:
                 device.power = None
             if message.get("motivo") in ("watchdog", "conexion_perdida"):
-                self.leases.pop(vehicle_id, None)
+                self._retire(vehicle_id)
             if mode == "serial":
                 device.ready = False
-                self.leases.pop(vehicle_id, None)
+                self._retire(vehicle_id)
             elif kind == "listo" and code == 0:
                 device.ready = True
             elif code == 0 and vehicle_id not in self.leases:
                 device.ready = True
         seq = message.get("seq")
         pending = device.pending.get(seq) if type(seq) is int else None
-        if pending and pending[0] == kind and not pending[1].done():
+        if pending and (pending[0] == kind or (kind == "ack" and message.get("ok") is False)) and not pending[1].done():
             pending[1].set_result(message)
 
     async def disconnect(self, vehicle_id, device):
         if self.devices.get(vehicle_id) is not device:
             return
         self.devices.pop(vehicle_id, None)
-        self.leases.pop(vehicle_id, None)
+        self._retire(vehicle_id)
         for _, future in device.pending.values():
             if not future.done():
                 future.set_exception(ServiceError(503, "Se desconectó el ESP8266."))
@@ -132,7 +153,8 @@ class DeviceService:
             await self._send(device, {"sesion": device.session, "seq": seq, **payload})
             return await asyncio.wait_for(future, ACK_SECONDS)
         except (TimeoutError, OSError, RuntimeError):
-            device.ready = False
+            if seq >= device.barrier:
+                device.ready = False
             raise ServiceError(503, "El ESP8266 no confirmó la orden a tiempo.") from None
         finally:
             device.pending.pop(seq, None)
@@ -146,6 +168,32 @@ class DeviceService:
         if self.devices.get(vehicle_id) is not lease.device or not lease.device.ready or lease.device.mode != "wifi":
             raise ServiceError(409, "El dispositivo no está listo en modo WiFi.")
         return lease
+
+    async def _prepare(self, vehicle_id, key, lease):
+        device = lease.device
+        generation = lease.generation
+        device.sequence += 1
+        seq = device.sequence
+        prepared = await self._exchange(device, seq, "preparado", {"tipo": "preparar", "control": key})
+        self._lease(vehicle_id, key)
+        if generation != lease.generation:
+            return
+        nonce = prepared.get("permiso")
+        if not isinstance(nonce, str) or not 1 <= len(nonce) <= 32:
+            raise ServiceError(503, "La placa no concedió permiso para activar salidas.")
+        lease.prepared = (seq, nonce, time.monotonic())
+
+    async def _warm(self, vehicle_id, key, lease):
+        try:
+            async with lease.command_lock:
+                self._lease(vehicle_id, key)
+                await self._prepare(vehicle_id, key, lease)
+        except ServiceError:
+            if self.leases.get(vehicle_id) is lease:
+                await self.stop(vehicle_id, key)
+        finally:
+            if lease.preparing is asyncio.current_task():
+                lease.preparing = None
 
     async def acquire(self, vehicle_id):
         async with self.coordinator.lock(vehicle_id):
@@ -162,8 +210,13 @@ class DeviceService:
         try:
             await self._stop_outputs(device)
             self._lease(vehicle_id, lease.key)
-        except Exception:
-            self.leases.pop(vehicle_id, None)
+            if self.prepare_ahead:
+                async with lease.command_lock:
+                    await self._prepare(vehicle_id, lease.key, lease)
+            lease.initialized = True
+        except (Exception, asyncio.CancelledError):
+            if self.leases.get(vehicle_id) is lease:
+                self._retire(vehicle_id)
             raise
         return {"lease_id": lease.key, "vence_en_ms": int(LEASE_SECONDS * 1000), "dispositivo": self.status(vehicle_id)}
 
@@ -180,25 +233,35 @@ class DeviceService:
 
     async def command(self, vehicle_id, key, code):
         lease = self._lease(vehicle_id, key)
+        generation = lease.generation
         if code == 0:
             # Libera salidas, pero conserva la sesión para el siguiente movimiento.
+            self._invalidate(lease)
             ack = await self._stop_outputs(lease.device)
             return {"codigo": 0, "duracion_ms": 0, "salidas_confirmadas": True}
         if code not in lease.commands:
             raise ServiceError(422, "El código no existe o está inactivo en el catálogo del vehículo.")
         async with lease.command_lock:
             self._lease(vehicle_id, key)
+            if generation != lease.generation:
+                return {"cancelado": True}
             device = lease.device
-            device.sequence += 1
-            seq = device.sequence
             try:
-                prepared = await self._exchange(device, seq, "preparado", {"tipo": "preparar", "control": key})
+                cached = bool(lease.prepared and time.monotonic() - lease.prepared[2] < PREPARED_SECONDS)
+                if not cached:
+                    await self._prepare(vehicle_id, key, lease)
+                if generation != lease.generation:
+                    return {"cancelado": True}
                 self._lease(vehicle_id, key)
-                nonce = prepared.get("permiso")
-                if not isinstance(nonce, str) or not 1 <= len(nonce) <= 32:
-                    raise ServiceError(503, "La placa no concedió permiso para activar salidas.")
+                seq, nonce, _ = lease.prepared
+                lease.prepared = None  # Un permiso solo se usa una vez.
                 ack = await self._exchange(device, seq, "ack", {"tipo": "orden", "control": key,
                     "permiso": nonce, "codigo": code, "ttl_ms": DEVICE_TTL_MS})
+                if generation != lease.generation:
+                    # Liberar no borra una orden que la placa sí alcanzó a confirmar.
+                    if ack.get("ok") is True and ack.get("codigo") == code:
+                        self._record(vehicle_id, lease.commands[code], key)
+                    return {"cancelado": True}
                 self._lease(vehicle_id, key)
                 if ack.get("ok") is not True or ack.get("codigo") != code:
                     raise ServiceError(409, "La placa rechazó la orden: " + str(ack.get("motivo", "sin confirmación"))[:80])
@@ -208,12 +271,16 @@ class DeviceService:
                     raise ServiceError(503, "Duración de pulsación no válida en la confirmación de la placa.")
                 self._record(vehicle_id, lease.commands[code], key)
             except Exception:
+                if generation != lease.generation:
+                    return {"cancelado": True}
                 await self.stop(vehicle_id, key)
                 raise
-        return {"codigo": code, "duracion_ms": duration, "salidas_confirmadas": True, "registro": "pendiente"}
+        return {"codigo": code, "duracion_ms": duration, "salidas_confirmadas": True, "registro": "pendiente",
+                "permiso_anticipado": cached}
 
     async def _stop_outputs(self, device):
         device.sequence += 1
+        device.barrier = device.sequence
         ack = await self._exchange(device, device.sequence, "ack", {"tipo": "parar"})
         if ack.get("ok") is not True or ack.get("codigo") != 0:
             device.ready = False
@@ -227,7 +294,7 @@ class DeviceService:
             return {"salidas_confirmadas": False, "mensaje": "La sesión ya terminó; no se interrumpió otro modo de control."}
         if key and lease and not secrets.compare_digest(key, lease.key):
             raise ServiceError(409, "La sesión pertenece a otro controlador.")
-        self.leases.pop(vehicle_id, None)
+        self._retire(vehicle_id)
         device = self.devices.get(vehicle_id)
         if not device:
             return {"salidas_confirmadas": False, "mensaje": "Sin dispositivo; actúa su watchdog local."}
@@ -273,6 +340,14 @@ class DeviceService:
                         await self.stop(vehicle_id, key)
                     except ServiceError:
                         pass  # Una nueva sesión pudo sustituir la ya expirada.
+                if self.prepare_ahead:
+                    for vehicle_id, lease in tuple(self.leases.items()):
+                        fresh = lease.prepared and now - lease.prepared[2] < PREPARED_SECONDS
+                        if lease.initialized and not fresh and not lease.preparing and not lease.command_lock.locked():
+                            task = asyncio.create_task(self._warm(vehicle_id, lease.key, lease))
+                            lease.preparing = task
+                            self.preparations.add(task)
+                            task.add_done_callback(self.preparations.discard)
                 stale = [(v, d) for v, d in self.devices.items() if now - d.seen > 3]
                 for vehicle_id, device in stale:
                     if device.mode == "wifi":
@@ -290,6 +365,9 @@ class DeviceService:
         if self.watch:
             self.watch.cancel()
             await asyncio.gather(self.watch, return_exceptions=True)
+        for task in tuple(self.preparations):
+            task.cancel()
+        await asyncio.gather(*self.preparations, return_exceptions=True)
         await asyncio.gather(*(self.stop(v) for v, d in tuple(self.devices.items()) if d.mode == "wifi"), return_exceptions=True)
         await asyncio.gather(*(d.socket.close(code=1001) for d in tuple(self.devices.values())), return_exceptions=True)
         try:

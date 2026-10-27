@@ -21,6 +21,8 @@ async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () =>
   let target = normalizeApi(apiUrl);
   let origin;
   const upstreams = new Set(), connections = new Set();
+  const httpAgent = new http.Agent({keepAlive:true,maxSockets:8,maxFreeSockets:4});
+  const httpsAgent = new https.Agent({keepAlive:true,maxSockets:8,maxFreeSockets:4});
   const send = (res, status, value, type='application/json; charset=utf-8') => {
     res.writeHead(status, {'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
       'Referrer-Policy':'no-referrer','Content-Security-Policy':CSP});
@@ -34,14 +36,15 @@ async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () =>
     const base = new URL(target);
     return {protocol:base.protocol, hostname:base.hostname.replace(/^\[|\]$/g,''), port:base.port || undefined,
       method:req.method, path:req.url, headers:{...req.headers, host:base.host, origin:base.origin,
-        'accept-encoding':'identity', connection:'close'}};
+        'accept-encoding':'identity', connection:'keep-alive'},
+      agent:base.protocol==='https:' ? httpsAgent : httpAgent};
   }
   function transport() {return target.startsWith('https:') ? https : http;}
   const server = http.createServer(async (req,res) => {
     try {
       if (!permitted(req)) return send(res,403,{detail:'Origen local no permitido.'});
       const url = new URL(req.url,origin);
-      if (url.pathname === '/desktop/config' && req.method === 'GET') return send(res,200,{apiUrl:target,version:'1.6.0'});
+      if (url.pathname === '/desktop/config' && req.method === 'GET') return send(res,200,{apiUrl:target,version:'1.6.1'});
       if (url.pathname === '/desktop/connect' && req.method === 'POST') {
         if (req.headers.origin !== origin || !req.headers['content-type']?.startsWith('application/json')) return send(res,403,{detail:'Solicitud no permitida.'});
         let body='';
@@ -50,6 +53,7 @@ async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () =>
         try {next=normalizeApi(JSON.parse(body).apiUrl);} catch(error) {return send(res,400,{detail:error.message});}
         await onSave(next);
         for(const remote of upstreams) remote.destroy();
+        httpAgent.destroy();httpsAgent.destroy();
         target=next;
         return send(res,200,{apiUrl:target});
       }
@@ -87,7 +91,7 @@ async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () =>
       if(!res.headersSent)send(res,500,{detail:'No se pudo completar la petición local.'});else res.destroy();
     }
   });
-  server.on('connection',socket=>{connections.add(socket);socket.on('close',()=>connections.delete(socket));});
+  server.on('connection',socket=>{socket.setNoDelay(true);connections.add(socket);socket.on('close',()=>connections.delete(socket));});
   server.on('upgrade',(req,socket,head)=>{
     if(!permitted(req) || req.headers.origin!==origin || !/^\/panel\/ws\/vehiculos\/[1-9]\d*$/.test(req.url)) {
       socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;
@@ -100,7 +104,7 @@ async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () =>
     socket.on('error',()=>remote.destroy());
     socket.on('close',()=>remote.destroy());
     remote.on('upgrade',(response,peer,remoteHead)=>{
-      remote.setTimeout(0);peer.setTimeout(0);upstreams.add(peer);
+      remote.setTimeout(0);peer.setTimeout(0);peer.setNoDelay(true);upstreams.add(peer);
       let headers='HTTP/1.1 101 Switching Protocols\r\n';
       for(let i=0;i<response.rawHeaders.length;i+=2)headers+=response.rawHeaders[i]+': '+response.rawHeaders[i+1]+'\r\n';
       socket.write(headers+'\r\n');
@@ -120,6 +124,7 @@ async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () =>
   origin='http://127.0.0.1:'+server.address().port;
   return {origin, apiUrl:()=>target, async close(){
     for(const remote of upstreams)remote.destroy();
+    httpAgent.destroy();httpsAgent.destroy();
     for(const socket of connections)socket.destroy();
     await new Promise(resolve=>server.close(resolve));
   }};

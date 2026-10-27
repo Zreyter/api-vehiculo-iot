@@ -1,6 +1,6 @@
 # Latencia de conducción: 1.6.1 y corrección 1.6.2
 
-La revisión vigente de la API es **1.6.2**. Corrige cancelaciones de sesión por permisos anticipados tardíos y la confirmación de parada; consulta [ESTABILIDAD.md](ESTABILIDAD.md). Usa el paquete `Actualizacion-estabilidad-1.6.2.zip` para EC2. El exe 1.6.1 y el firmware actual siguen siendo compatibles.
+La versión publicada vigente es **1.6.4**. Actualiza la API de EC2 y el exe según [TECLAS-RAPIDAS.md](TECLAS-RAPIDAS.md), usando `Actualizacion-teclas-1.6.4.zip` y el exe 1.6.4. El firmware actual sigue siendo compatible. Este documento conserva la medición de latencia de 1.6.1; [ESTABILIDAD.md](ESTABILIDAD.md) describe la corrección anterior 1.6.2.
 
 Esta revisión mantiene el protocolo del ESP8266 de v1.5/v1.6. **No hace falta volver a cargar la placa**. Se actualizan la API/panel de EC2 y la app Windows.
 

@@ -1,12 +1,14 @@
 {
   "name": "vehiculo-iot-desktop",
-  "version": "1.6.1",
-  "description": "Panel de escritorio para Vehículo IoT, EC2 y ESP8266",
+  "version": "1.6.4",
+  "description": "Panel de escritorio para Veh\u00edculo IoT, EC2 y ESP8266",
   "private": true,
   "author": "Zreyter",
   "license": "UNLICENSED",
   "main": "src/main.cjs",
-  "engines": {"node": ">=22.12.0"},
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "prepare:panel": "node scripts/prepare-panel.cjs",
     "start": "electron .",
@@ -22,9 +24,23 @@
     "productName": "Vehiculo IoT",
     "artifactName": "Vehiculo-IoT-${version}-Windows-x64.${ext}",
     "asar": true,
-    "files": ["src/**/*", "assets/**/*", "package.json"],
-    "directories": {"output": "dist", "buildResources": "assets"},
-    "win": {"target": ["portable"], "icon": "assets/icon.ico"},
-    "portable": {"requestExecutionLevel": "user"}
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "portable": {
+      "requestExecutionLevel": "user"
+    }
   }
 }

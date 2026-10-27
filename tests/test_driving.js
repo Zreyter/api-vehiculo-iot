@@ -13,6 +13,39 @@ function setup(sendOverride) {
   control.arm(target);
   return {control,sent,timers,errors,target,fire,codes:()=>sent.map(s=>s.code)};
 }
+
+test('registro ocupado libera, mantiene la sesión y exige otra pulsación',async()=>{
+  const sent=[],notices=[];
+  const controller=createController({send:async code=>{
+    sent.push(code);return code===10?{codigo:0,cancelado:true,registro_ocupado:true,salidas_confirmadas:true,mensaje:'Guardando'}:{};
+  },notice:message=>notices.push(message)});
+  controller.arm({vehicle:1,transport:'wifi',commands:new Map(actions.map(a=>[a.code,a.code]))});
+  controller.press(10,'left');await controller.idle();
+  assert.equal(controller.snapshot().active,0);assert.equal(controller.snapshot().armed,true);
+  assert.equal(controller.snapshot().confirmed,true);assert.equal(notices.at(-1),'Guardando');
+  await controller.idle();assert.deepEqual(sent,[10]);
+  controller.release('left');controller.press(2,'forward');await controller.idle();
+  assert.deepEqual(sent,[10,2]);
+});
+
+test('prueba de liberación de sesión finalizada pausa sin nueva activación',async()=>{
+  const controller=createController({send:async()=>({codigo:0,sesion_finalizada:true,salidas_confirmadas:true})});
+  controller.arm({vehicle:1,transport:'wifi',commands:new Map([[0,0],[2,2]])});
+  await controller.halt();assert.equal(controller.snapshot().armed,false);
+  assert.equal(controller.snapshot().active,0);assert.equal(controller.snapshot().stopFailed,false);
+  assert.equal(controller.press(2,'W'),false);
+});
+
+test('joystick izquierdo no repite pulsaciones por ruido junto a la zona muerta',()=>{
+  let inputs=gamepadInputs({buttons:[],axes:[-.35,0]},.25);
+  assert.ok(inputs.has('a0-'));
+  for(const value of [-.299,-.301,-.295,-.305]){
+    inputs=gamepadInputs({buttons:[],axes:[value,0]},.25,inputs);
+    assert.ok(inputs.has('a0-'));
+  }
+  inputs=gamepadInputs({buttons:[],axes:[-.24,0]},.25,inputs);
+  assert.equal(inputs.size,0);
+});
 test('catálogo se resuelve por código, sin confundirlo con el ID',()=>{
   const result=resolveCommands([{codigo:'2',id_comando:87,activo:1},{codigo:0,id_comando:92,activo:1},{codigo:5,id_comando:90,activo:0}]);
   assert.equal(result.map.get(2),87);assert.equal(result.map.get(0),92);assert.ok(result.missing.includes(5));

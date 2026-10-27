@@ -8,3 +8,4 @@ class ControlLease(BaseModel):
 
 class DeviceCommand(ControlLease):
     codigo: int = Field(ge=0, le=13, strict=True)
+    intencion: int | None = Field(default=None, gt=0, le=9007199254740991, strict=True)

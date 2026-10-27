@@ -50,6 +50,11 @@ class Lease:
     generation: int = 0
     initialized: bool = False
     next_prepare_at: float = 0.
+    last_intent: int = 0
+    closed_at: float = 0.
+    end_reason: str = ""
+    stop_ack: dict | None = None
+    stop_task: asyncio.Task | None = None
 
 
 class DeviceService:
@@ -62,6 +67,7 @@ class DeviceService:
         self.closing = False
         self.prepare_ahead = prepare_ahead
         self.preparations = set()
+        self.ended, self.interruptions = {}, {}
 
     def _invalidate(self, lease):
         lease.generation += 1
@@ -70,10 +76,13 @@ class DeviceService:
         if task and task is not asyncio.current_task():
             task.cancel()
 
-    def _retire(self, vehicle_id):
+    def _retire(self, vehicle_id, reason="sesion_finalizada"):
         lease = self.leases.pop(vehicle_id, None)
         if lease:
             self._invalidate(lease)
+            lease.closed_at, lease.end_reason = time.monotonic(), reason
+            self.ended[vehicle_id] = lease
+            self.interruptions[vehicle_id] = reason
         return lease
 
     def start(self):
@@ -91,6 +100,8 @@ class DeviceService:
             "encendido_estimado": device.power if device else None,
             "control_ocupado": lease is not None,
             "registro_error": self.log_errors.get(vehicle_id),
+            "registros_pendientes": self.coordinator.device_pending.get(vehicle_id, 0),
+            "ultima_interrupcion": self.interruptions.get(vehicle_id),
             "confirmacion": "salidas del microcontrolador; sin sensores de movimiento",
         }
 
@@ -132,10 +143,10 @@ class DeviceService:
             elif message.get("encendido_estimado") is None:
                 device.power = None
             if message.get("motivo") in ("watchdog", "conexion_perdida"):
-                self._retire(vehicle_id)
+                self._retire(vehicle_id, message["motivo"])
             if mode == "serial":
                 device.ready = False
-                self._retire(vehicle_id)
+                self._retire(vehicle_id, "serial")
             elif kind == "listo" and code == 0:
                 device.ready = True
             elif code == 0 and vehicle_id not in self.leases:
@@ -148,7 +159,7 @@ class DeviceService:
         if self.devices.get(vehicle_id) is not device:
             return
         self.devices.pop(vehicle_id, None)
-        self._retire(vehicle_id)
+        self._retire(vehicle_id, "desconexion_dispositivo")
         for _, future in device.pending.values():
             if not future.done():
                 future.set_exception(ServiceError(503, "Se desconectó el ESP8266."))
@@ -170,7 +181,12 @@ class DeviceService:
 
     def _lease(self, vehicle_id, key):
         lease = self.leases.get(vehicle_id)
+        if lease and secrets.compare_digest(lease.key, key) and time.monotonic() >= lease.deadline:
+            raise ServiceError(409, "La sesión de conducción venció porque no se renovó a tiempo.")
         if not lease or not secrets.compare_digest(lease.key, key) or time.monotonic() >= lease.deadline:
+            ended = self.ended.get(vehicle_id)
+            if not lease and ended and secrets.compare_digest(ended.key, key):
+                raise ServiceError(409, "La sesión de conducción terminó: " + ended.end_reason + ".")
             raise ServiceError(409, "La sesión de conducción venció o pertenece a otro controlador.")
         if self.devices.get(vehicle_id) is not lease.device or not lease.device.ready or lease.device.mode != "wifi":
             raise ServiceError(409, "El dispositivo no está listo en modo WiFi.")
@@ -227,6 +243,8 @@ class DeviceService:
             if self.devices.get(vehicle_id) is not device or not device.ready or device.mode != "wifi":
                 raise ServiceError(409, "El dispositivo cambió durante la validación del catálogo.")
             lease = Lease(device, commands)
+            self.ended.pop(vehicle_id, None)
+            self.interruptions.pop(vehicle_id, None)
             self.leases[vehicle_id] = lease
         try:
             await self._stop_outputs(device)
@@ -239,9 +257,10 @@ class DeviceService:
             lease.initialized = True
         except (Exception, asyncio.CancelledError):
             if self.leases.get(vehicle_id) is lease:
-                self._retire(vehicle_id)
+                self._retire(vehicle_id, "inicio_cancelado")
             raise
-        return {"lease_id": lease.key, "vence_en_ms": int(LEASE_SECONDS * 1000), "dispositivo": self.status(vehicle_id)}
+        return {"lease_id": lease.key, "vence_en_ms": int(LEASE_SECONDS * 1000),
+                "protocolo_control": 2, "dispositivo": self.status(vehicle_id)}
 
     async def renew(self, vehicle_id, key):
         lease = self._lease(vehicle_id, key)
@@ -250,12 +269,46 @@ class DeviceService:
             await self._send(lease.device, {"tipo": "latido", "sesion": lease.device.session,
                                          "control": key, "ttl_ms": DEVICE_TTL_MS})
         except Exception:
-            await self.stop(vehicle_id, key)
+            await self.stop(vehicle_id, key, reason="comunicacion_dispositivo")
             raise ServiceError(503, "No se pudo renovar la comunicación con la placa.") from None
         return {"vence_en_ms": int(LEASE_SECONDS * 1000)}
 
-    async def command(self, vehicle_id, key, code):
+    async def _released_proof(self, vehicle_id, key):
+        ended = self.ended.get(vehicle_id)
+        device = self.devices.get(vehicle_id)
+        if (vehicle_id in self.leases or not ended or not secrets.compare_digest(ended.key, key)
+            or time.monotonic() - ended.closed_at > 30 or device is not ended.device or device.mode != "wifi"):
+            return None
+        if ended.stop_task and not ended.stop_ack:
+            try:
+                ended.stop_ack = await asyncio.shield(ended.stop_task)
+            except Exception:
+                return None
+        if (self.leases.get(vehicle_id) or self.ended.get(vehicle_id) is not ended or device.mode != "wifi"
+            or not device.ready or device.code != 0 or time.monotonic() - device.seen > 3
+            or not ended.stop_ack or ended.stop_ack.get("seq") != device.barrier):
+            return None
+        return {"codigo": 0, "duracion_ms": 0, "salidas_confirmadas": True,
+                "sesion_finalizada": True, "motivo": ended.end_reason}
+
+    async def command(self, vehicle_id, key, code, *, intent=None):
+        if code == 0:
+            owned = self.leases.get(vehicle_id)
+            if not owned:
+                proof = await self._released_proof(vehicle_id, key)
+                if proof:
+                    return proof
+            elif (secrets.compare_digest(owned.key, key) and self.devices.get(vehicle_id) is owned.device
+                  and owned.device.mode == "wifi" and time.monotonic() >= owned.deadline):
+                result = await self.stop(vehicle_id, key, reason="sesion_vencida")
+                if not result["salidas_confirmadas"]:
+                    raise ServiceError(503, "La placa no confirmó las salidas liberadas.")
+                return {"codigo": 0, "duracion_ms": 0, **result, "sesion_finalizada": True}
         lease = self._lease(vehicle_id, key)
+        if intent is not None:
+            if intent <= lease.last_intent:
+                return {"cancelado": True}
+            lease.last_intent = intent
         generation = lease.generation
         if code == 0:
             # Libera salidas, pero conserva la sesión para el siguiente movimiento.
@@ -264,7 +317,7 @@ class DeviceService:
                 await self._stop_outputs(lease.device)
             except Exception:
                 if self.leases.get(vehicle_id) is lease:
-                    self._retire(vehicle_id)
+                    self._retire(vehicle_id, "parada_sin_confirmacion")
                 raise
             return {"codigo": 0, "duracion_ms": 0, "salidas_confirmadas": True}
         if code not in lease.commands:
@@ -273,14 +326,28 @@ class DeviceService:
             if lease.device.stopping and not lease.device.stopping.done():
                 await asyncio.shield(lease.device.stopping)
             self._lease(vehicle_id, key)
-            if generation != lease.generation:
+            if generation != lease.generation or (intent is not None and intent != lease.last_intent):
                 return {"cancelado": True}
             device = lease.device
+            queue = self.queues.get(vehicle_id)
+            if queue and queue.full():
+                # Reservar capacidad antes de activar evita perder registros
+                # aplicados. Se liberan salidas conservando el controlador.
+                self._invalidate(lease)
+                try:
+                    await self._stop_outputs(device)
+                except Exception:
+                    if self.leases.get(vehicle_id) is lease:
+                        self._retire(vehicle_id, "parada_sin_confirmacion")
+                    raise
+                return {"codigo": 0, "cancelado": True, "registro_ocupado": True,
+                        "salidas_confirmadas": True,
+                        "mensaje": "Se están guardando los movimientos. Suelta los controles y vuelve a pulsar."}
             try:
                 cached = bool(lease.prepared and time.monotonic() - lease.prepared[2] < PREPARED_SECONDS)
                 if not cached:
                     await self._prepare(vehicle_id, key, lease)
-                if generation != lease.generation:
+                if generation != lease.generation or (intent is not None and intent != lease.last_intent):
                     return {"cancelado": True}
                 self._lease(vehicle_id, key)
                 seq, nonce, _ = lease.prepared
@@ -303,17 +370,20 @@ class DeviceService:
             except Exception:
                 if generation != lease.generation:
                     return {"cancelado": True}
-                await self.stop(vehicle_id, key)
+                await self.stop(vehicle_id, key, reason="orden_sin_confirmacion")
                 raise
         return {"codigo": code, "duracion_ms": duration, "salidas_confirmadas": True, "registro": "pendiente",
                 "permiso_anticipado": cached}
 
-    async def _stop_outputs(self, device):
+    def _ensure_stop(self, device):
         if not device.stopping or device.stopping.done():
             device.stopping = asyncio.create_task(self._confirm_stop(device))
             # Una petición HTTP cancelada no debe cancelar la liberación real.
             device.stopping.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
-        return await asyncio.shield(device.stopping)
+        return device.stopping
+
+    async def _stop_outputs(self, device):
+        return await asyncio.shield(self._ensure_stop(device))
 
     async def _confirm_stop(self, device):
         try:
@@ -338,18 +408,26 @@ class DeviceService:
             device.ready = False
             raise
 
-    async def stop(self, vehicle_id, key=None):
+    async def stop(self, vehicle_id, key=None, *, reason="parada_solicitada"):
         lease = self.leases.get(vehicle_id)
         if key and not lease:
+            proof = await self._released_proof(vehicle_id, key)
+            if proof:
+                return proof
             return {"salidas_confirmadas": False, "mensaje": "La sesión ya terminó; no se interrumpió otro modo de control."}
         if key and lease and not secrets.compare_digest(key, lease.key):
             raise ServiceError(409, "La sesión pertenece a otro controlador.")
-        self._retire(vehicle_id)
+        self._retire(vehicle_id, reason)
         device = self.devices.get(vehicle_id)
         if not device:
             return {"salidas_confirmadas": False, "mensaje": "Sin dispositivo; actúa su watchdog local."}
         try:
-            await self._stop_outputs(device)
+            task = self._ensure_stop(device)
+            if lease:
+                lease.stop_task = task
+            ack = await asyncio.shield(task)
+            if lease:
+                lease.stop_ack = ack
             return {"salidas_confirmadas": True}
         except Exception:
             device.ready = False
@@ -374,7 +452,7 @@ class DeviceService:
                     salidas_aplicadas_confirmadas=True))
             except Exception:
                 self.log_errors[vehicle_id] = "No se pudo registrar en RDS una orden ya aplicada. Revisa el historial antes de repetir."
-                await self.stop(vehicle_id, key)
+                await self.stop(vehicle_id, key, reason="registro_rds")
             finally:
                 self.coordinator.device_pending[vehicle_id] -= 1
                 queue.task_done()
@@ -384,10 +462,13 @@ class DeviceService:
             while True:
                 await asyncio.sleep(.05)
                 now = time.monotonic()
+                for vehicle_id, lease in tuple(self.ended.items()):
+                    if now - lease.closed_at > 30:
+                        self.ended.pop(vehicle_id, None)
                 expired = [(v, lease.key) for v, lease in self.leases.items() if lease.initialized and now >= lease.deadline]
                 for vehicle_id, key in expired:
                     try:
-                        await self.stop(vehicle_id, key)
+                        await self.stop(vehicle_id, key, reason="sesion_vencida")
                     except ServiceError:
                         pass  # Una nueva sesión pudo sustituir la ya expirada.
                 if self.prepare_ahead:

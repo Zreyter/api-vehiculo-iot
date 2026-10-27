@@ -63,6 +63,7 @@
   controller = createController({
     send: (code, target, options) => window.vehiclePanel.sendDrive(code, target, options),
     changed: value => { engineState = value; renderStatus(); },
+    notice: message => setMessage(message || 'Mantén una tecla o botón para mover; al soltar se libera.', false),
     fault: (error, stopFailed) => {
       clearInputs();
       setMessage(error.message + (stopFailed ? ' No se confirmó la liberación. Comprueba la conexión y pulsa Parar de nuevo.' : ' Se desactivó la conducción y se solicitó liberar.'), true);
@@ -238,7 +239,7 @@
     if(id!==lastPadId){if(engineState.armed)suspend('El mando se conectó, cambió o desconectó.');lastPadId=id;padNeutral=false;padDown.clear();}
     const status = !window.isSecureContext ? 'El mando requiere HTTPS en EC2 o localhost en tu PC.' : !navigator.getGamepads ? 'Este navegador no admite mandos.' : !pad ? 'Conecta tu mando Xbox y pulsa un botón para detectarlo.' : pad.mapping!=='standard' ? 'Mando sin distribución estándar. Sus entradas no se usarán para conducir.' : 'Mando listo · '+pad.id;
     if($('#drivePadStatus').textContent!==status)$('#drivePadStatus').textContent=status;
-    const inputs=pad&&pad.mapping==='standard'?gamepadInputs(pad,preferences.deadzone):new Set();
+    const inputs=pad&&pad.mapping==='standard'?gamepadInputs(pad,preferences.deadzone,padDown):new Set();
     if(!engineState.armed||!usable()){padNeutral=false;padDown=inputs;}
     else if(!padNeutral){if(!inputs.size){padNeutral=true;padDown.clear();}}
     else {

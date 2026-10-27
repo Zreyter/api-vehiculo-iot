@@ -26,15 +26,19 @@
     }
     return {map, missing, ambiguous};
   }
-  function gamepadInputs(pad, deadzone = .25) {
+  function gamepadInputs(pad, deadzone = .25, previous = new Set()) {
     const inputs = new Set();
     (pad.buttons || []).forEach((b, i) => { if (b.pressed || b.value > .5) inputs.add('b' + i); });
     (pad.axes || []).forEach((v, i) => {
-      if (Math.abs(v) > deadzone) inputs.add('a' + i + (v < 0 ? '-' : '+'));
+      const input='a' + i + (v < 0 ? '-' : '+');
+      // La zona configurada siempre libera. Para entrar se exige un pequeño
+      // margen adicional que evita nuevas pulsaciones por ruido del stick.
+      const threshold=previous.has(input)?deadzone:deadzone+Math.min(.05,deadzone*.2);
+      if (Math.abs(v) > threshold) inputs.add(input);
     });
     return inputs;
   }
-  function createController({send, changed = () => {}, fault = () => {}, timer = setTimeout, cancel = clearTimeout}) {
+  function createController({send, changed = () => {}, fault = () => {}, notice = () => {}, timer = setTimeout, cancel = clearTimeout}) {
     let armed = false, context = null, active = null, desired = null, pumping = null, confirmed = false;
     let pulse = null, pulseTimer = null, power = 'unknown', stopFailed = false;
     let sending = null, revision = 0, priority = null;
@@ -60,6 +64,7 @@
       const target = context;
       priority = Promise.resolve().then(() => send(0, target, {priority:true})).then(receipt => {
         active = 0; confirmed = receipt?.cancelado !== true; stopFailed = false;
+        if(receipt?.sesion_finalizada){armed=false;pressed.clear();clearPulse();desired=0;}
       }).catch(error => {
         armed = false; pressed.clear(); clearPulse(); active = null; desired = null;
         stopFailed = true; fault(error, true);
@@ -73,6 +78,11 @@
         try {
           const receipt = await send(code, target, {stillWanted: () => armed && desired === code});
           if (ticket !== revision) continue;
+          if(receipt?.registro_ocupado){
+            pressed.clear();clearPulse();active=desired=0;confirmed=true;stopFailed=false;
+            notice(receipt.mensaje);continue;
+          }
+          if(receipt?.sesion_finalizada){armed=false;pressed.clear();clearPulse();desired=0;}
           active = code; confirmed = receipt?.cancelado !== true; stopFailed = false;
           if (currentPulse && pulse === currentPulse && code === pulse.code) {
             pulseTimer = timer(() => {
@@ -119,6 +129,7 @@
         const action = actions.find(a => a.code === code);
         if (!armed || pulse || !action || !context.commands.has(code) || pressed.has(source)) return false;
         if (code === 9 && power === 'unknown') return false;
+        notice('');
         pressed.set(source, action);
         if (!action.held) pulse = {code, duration: code === 9 && power === 'on' ? 2000 : 200};
         desired = code; pump(); notify(); return true;

@@ -29,7 +29,7 @@ async def renew(id_vehiculo: VehicleId, body: ControlLease, request: Request):
 
 @router.post("/vehiculos/{id_vehiculo}/control/orden", dependencies=control, tags=["Dispositivo ESP8266"])
 async def command(id_vehiculo: VehicleId, body: DeviceCommand, request: Request):
-    return await request.app.state.device_service.command(id_vehiculo, body.lease_id, body.codigo)
+    return await request.app.state.device_service.command(id_vehiculo, body.lease_id, body.codigo, intent=body.intencion)
 
 
 @router.delete("/vehiculos/{id_vehiculo}/control", dependencies=control, tags=["Dispositivo ESP8266"])

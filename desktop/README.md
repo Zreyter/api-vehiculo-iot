@@ -2,11 +2,23 @@
 
 Aplicación portátil para Windows x64 que utiliza el panel de `app/panel` y la misma API FastAPI de EC2. Incluye Conducción por WiFi, teclado y mando, administración, historial, secuencias DEMO y eventos en vivo.
 
+## Conducción con pulsaciones rápidas: 1.6.4
+
+El nuevo exe 1.6.4 necesita actualizar también la API de EC2 a 1.6.4. Añade intención creciente para impedir solicitudes anteriores a una liberación y maneja el aviso de cola RDS ocupada sin reactivar entradas mantenidas. Consulta la [guía de pulsaciones rápidas](../docs/TECLAS-RAPIDAS.md). El firmware actual sigue siendo compatible.
+
+## Antecedente: revisión 1.6.3
+
+El exe anterior 1.6.3 corrige conexiones y renovaciones del control e incorpora estabilización del joystick y consultas de historial agrupadas. Funciona con la API 1.6.2; consulta la [guía de conexión y mando](../docs/CONEXION-MANDO.md). La descarga de la release v1.6.2 indicada abajo conserva el exe anterior 1.6.1.
+
 ## Descargar
 
-[Descargar Vehículo IoT 1.6.1 para Windows x64](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.2/Vehiculo-IoT-1.6.1-Windows-x64.exe). La [release v1.6.2](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.2) reúne la aplicación compatible, el [paquete de actualización EC2 1.6.2](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.2/Actualizacion-estabilidad-1.6.2.zip), instrucciones y checksum SHA256.
+[Descargar Vehículo IoT 1.6.4 para Windows x64](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.4/Vehiculo-IoT-1.6.4-Windows-x64.exe). La [release v1.6.4](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.4) incluye el [paquete de actualización EC2 1.6.4](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.4/Actualizacion-teclas-1.6.4.zip), instrucciones y checksums SHA256.
 
-## Aplicación 1.6.1 y API 1.6.2
+**Actualiza primero la API de EC2 y después abre el exe 1.6.4.** El firmware ESP8266 actual sigue siendo compatible.
+
+La [release anterior v1.6.2](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.2) conserva sus descargas originales.
+
+## Antecedente: aplicación 1.6.1 y API 1.6.2
 
 La aplicación 1.6.1 reduce la latencia con conexiones reutilizables, preparación anticipada y liberación prioritaria. La API 1.6.2 corrige cancelaciones por permisos anticipados tardíos y confirmaciones de parada. Actualiza la carpeta `app` de EC2 según la [guía de estabilidad](../docs/ESTABILIDAD.md); el exe 1.6.1 y el firmware actual siguen siendo compatibles.
 
@@ -14,7 +26,7 @@ La [release anterior v1.6](https://github.com/Zreyter/api-vehiculo-iot/releases/
 
 ## Uso
 
-1. Abre `Vehiculo-IoT-1.6.1-Windows-x64.exe`. No necesita instalar Node.js, Python ni Arduino IDE para ejecutarse.
+1. Abre `Vehiculo-IoT-1.6.4-Windows-x64.exe`. No necesita instalar Node.js, Python ni Arduino IDE para ejecutarse.
 2. Confirma la dirección vigente de la API; inicialmente propone `http://3.233.212.203:8000`. Puedes cambiarla desde **Aplicación → Cambiar servidor**.
 3. Pulsa **Abrir mi panel → Conectar API** e introduce tu `CONTROL_TOKEN` habitual. No hay tokens incorporados en el ejecutable.
 4. Para conducir selecciona el vehículo, **Conducción → ESP8266 por WiFi → Activar conducción**. La placa debe estar conectada a la API y en modo WIFI; para cambiar desde serial envía `WIFI` en Termite.
@@ -44,13 +56,13 @@ npm test
 npm run dist
 ```
 
-El resultado queda en `desktop/dist/Vehiculo-IoT-1.6.1-Windows-x64.exe`. `npm run prepare:panel` copia el panel vigente del repositorio. Las adaptaciones exclusivas del escritorio se aplican a esa copia; no modifican los archivos servidos por FastAPI.
+El resultado queda en `desktop/dist/Vehiculo-IoT-1.6.4-Windows-x64.exe`. `npm run prepare:panel` copia el panel vigente del repositorio. Las adaptaciones exclusivas del escritorio se aplican a esa copia; no modifican los archivos servidos por FastAPI.
 
 Dependencias fijadas: Electron 45.0.0 y electron-builder 26.15.3. Se incluye `package-lock.json`.
 
 ## Verificación
 
-- Nueve pruebas Node del adaptador: configuración, archivos permitidos, HTTP, autenticación, errores, origen y WebSocket.
+- Quince pruebas Node del adaptador: configuración, archivos permitidos, HTTP, autenticación, errores, origen y WebSocket.
 - Recorridos en Electron con FastAPI real y MySQL/ESP8266 simulados: inicio de sesión, catálogo e historial, eventos, alta administrativa, conducción con renovación, liberación, pulso DEMO, prioridad serial y conservación de preferencias sin guardar el token.
 - Verificación de cierre y reapertura, contexto local seguro, disponibilidad de Gamepad API y aislamiento del renderer.
 

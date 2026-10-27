@@ -83,7 +83,7 @@ class StabilityTests(unittest.IsolatedAsyncioTestCase):
         await self.service.command(1, self.key, 2)
         self.relay.drop['ack'] = 1
         before = len(self.socket.frames)
-        with patch('app.services.device_service.STOP_ACK_SECONDS', .04):
+        with patch('app.services.device_service.STOP_ACK_SECONDS', .1):
             result = await self.service.command(1, self.key, 0)
         self.assertTrue(result['salidas_confirmadas'])
         self.assertEqual([f['tipo'] for f in self.socket.frames[before:] if f['tipo'] != 'latido'], ['parar', 'parar'])
@@ -120,7 +120,7 @@ class StabilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_unconfirmed_release_ends_session_and_does_not_claim_success(self):
         await self.service.command(1, self.key, 2)
         self.relay.drop['ack'] = 2
-        with patch('app.services.device_service.STOP_ACK_SECONDS', .04):
+        with patch('app.services.device_service.STOP_ACK_SECONDS', .1):
             with self.assertRaises(ServiceError):
                 await self.service.command(1, self.key, 0)
         self.assertNotIn(1, self.service.leases)

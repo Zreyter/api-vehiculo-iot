@@ -19,10 +19,15 @@ function normalizeApi(value) {
 
 async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () => {}}) {
   let target = normalizeApi(apiUrl);
-  let origin;
+  let origin, revision=0, closing=false;
   const upstreams = new Set(), connections = new Set();
-  const httpAgent = new http.Agent({keepAlive:true,maxSockets:8,maxFreeSockets:4});
-  const httpsAgent = new https.Agent({keepAlive:true,maxSockets:8,maxFreeSockets:4});
+  // El historial nunca consume los sockets reservados al control o sus latidos.
+  const agents=Object.fromEntries(['general','control','renewal'].map(group=>{
+    const options={keepAlive:true,maxSockets:group==='general'?8:group==='control'?4:2,
+      maxFreeSockets:2,timeout:1000,scheduling:'lifo'};
+    return [group,{http:new http.Agent(options),https:new https.Agent(options)}];
+  }));
+  const destroyAgents=()=>{for(const group of Object.values(agents)){group.http.destroy();group.https.destroy();}};
   const send = (res, status, value, type='application/json; charset=utf-8') => {
     res.writeHead(status, {'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
       'Referrer-Policy':'no-referrer','Content-Security-Policy':CSP});
@@ -32,19 +37,19 @@ async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () =>
     return req.headers.host === new URL(origin).host && (!req.headers.origin || req.headers.origin === origin)
       && !['cross-site','same-site'].includes(req.headers['sec-fetch-site']);
   }
-  function proxyOptions(req) {
+  function proxyOptions(req,group='general') {
     const base = new URL(target);
     return {protocol:base.protocol, hostname:base.hostname.replace(/^\[|\]$/g,''), port:base.port || undefined,
       method:req.method, path:req.url, headers:{...req.headers, host:base.host, origin:base.origin,
         'accept-encoding':'identity', connection:'keep-alive'},
-      agent:base.protocol==='https:' ? httpsAgent : httpAgent};
+      agent:base.protocol==='https:' ? agents[group].https : agents[group].http};
   }
   function transport() {return target.startsWith('https:') ? https : http;}
   const server = http.createServer(async (req,res) => {
     try {
       if (!permitted(req)) return send(res,403,{detail:'Origen local no permitido.'});
       const url = new URL(req.url,origin);
-      if (url.pathname === '/desktop/config' && req.method === 'GET') return send(res,200,{apiUrl:target,version:'1.6.1'});
+      if (url.pathname === '/desktop/config' && req.method === 'GET') return send(res,200,{apiUrl:target,version:'1.6.3'});
       if (url.pathname === '/desktop/connect' && req.method === 'POST') {
         if (req.headers.origin !== origin || !req.headers['content-type']?.startsWith('application/json')) return send(res,403,{detail:'Solicitud no permitida.'});
         let body='';
@@ -52,8 +57,9 @@ async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () =>
         let next;
         try {next=normalizeApi(JSON.parse(body).apiUrl);} catch(error) {return send(res,400,{detail:error.message});}
         await onSave(next);
+        revision++;
         for(const remote of upstreams) remote.destroy();
-        httpAgent.destroy();httpsAgent.destroy();
+        destroyAgents();
         target=next;
         return send(res,200,{apiUrl:target});
       }
@@ -75,18 +81,47 @@ async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () =>
         }
       }
       if(!/^\/(admin|vehiculos)(\/|\?|$)/.test(req.url) || !['GET','POST','PUT','DELETE','PATCH'].includes(req.method)) return send(res,404,{detail:'Ruta no disponible.'});
-      const remote=transport().request(proxyOptions(req),response=>{
-        if(response.statusCode>=300 && response.statusCode<400){response.resume();return send(res,502,{detail:'La API devolvió una redirección. Revisa la dirección del servidor.'});}
-        res.writeHead(response.statusCode,{'Content-Type':response.headers['content-type'] || 'application/json',
-          'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':CSP});
-        response.pipe(res);
-      });
-      upstreams.add(remote);remote.on('close',()=>upstreams.delete(remote));
-      remote.setTimeout(25000,()=>remote.destroy(new Error('Tiempo agotado.')));
-      remote.on('error',()=>{if(!res.headersSent)send(res,502,{detail:'No se pudo contactar con EC2. Comprueba el servidor, el puerto y tu conexión.'});else res.destroy();});
-      req.on('aborted',()=>remote.destroy());
-      res.on('close',()=>{if(!res.writableFinished)remote.destroy();});
-      req.pipe(remote);
+      const control=/^\/vehiculos\/[1-9]\d*\/control(?:\/orden)?$/.test(url.pathname);
+      const renewal=control && req.method==='PUT' && url.pathname.endsWith('/control');
+      const replayable=req.method==='GET' || renewal;
+      const generation=revision, clientTransport=transport(), options=proxyOptions(req,renewal?'renewal':control?'control':'general');
+      let body, remote, retries=0, responded=false;
+      if(replayable){
+        const chunks=[];let length=0;
+        for await(const chunk of req){
+          length+=chunk.length;if(length>4096)return send(res,413,{detail:'Petición de consulta o renovación demasiado grande.'});
+          chunks.push(chunk);
+        }
+        body=Buffer.concat(chunks);
+      }
+      function forward(fresh=false){
+        if(closing || req.aborted || res.destroyed || generation!==revision)return;
+        const attempt=clientTransport.request(fresh?{...options,agent:false,headers:{...options.headers,connection:'close'}}:options,response=>{
+          responded=true;
+          if(res.destroyed || generation!==revision){response.destroy();return;}
+          if(response.statusCode>=300 && response.statusCode<400){response.resume();return send(res,502,{detail:'La API devolvió una redirección. Revisa la dirección del servidor.'});}
+          res.writeHead(response.statusCode,{'Content-Type':response.headers['content-type'] || 'application/json',
+            'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':CSP});
+          response.on('error',()=>res.destroy());response.pipe(res);
+        });
+        remote=attempt;upstreams.add(attempt);attempt.on('close',()=>upstreams.delete(attempt));
+        attempt.setTimeout(25000,()=>attempt.destroy(Object.assign(new Error('Tiempo agotado.'),{code:'UPSTREAM_TIMEOUT'})));
+        attempt.on('error',error=>{
+          if(replayable && !retries && attempt.reusedSocket && error.code==='ECONNRESET' && !responded &&
+             !closing && !req.aborted && !res.destroyed && generation===revision){
+            retries++;forward(true);return;
+          }
+          if(res.destroyed || res.writableEnded)return;
+          const known=new Set(['ECONNRESET','ECONNREFUSED','ENOTFOUND','EAI_AGAIN','ETIMEDOUT','EPIPE','UPSTREAM_TIMEOUT']);
+          if(!res.headersSent)send(res,502,{detail:'No se pudo contactar con EC2. Comprueba el servidor, el puerto y tu conexión.',
+            codigo_red:known.has(error.code)?error.code:'UPSTREAM_ERROR'});
+          else res.destroy();
+        });
+        if(replayable)attempt.end(body);else req.pipe(attempt);
+      }
+      req.on('aborted',()=>remote?.destroy());
+      res.on('close',()=>{if(!res.writableFinished)remote?.destroy();});
+      forward();
     } catch {
       if(!res.headersSent)send(res,500,{detail:'No se pudo completar la petición local.'});else res.destroy();
     }
@@ -123,8 +158,9 @@ async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () =>
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
   origin='http://127.0.0.1:'+server.address().port;
   return {origin, apiUrl:()=>target, async close(){
+    closing=true;
     for(const remote of upstreams)remote.destroy();
-    httpAgent.destroy();httpsAgent.destroy();
+    destroyAgents();
     for(const socket of connections)socket.destroy();
     await new Promise(resolve=>server.close(resolve));
   }};

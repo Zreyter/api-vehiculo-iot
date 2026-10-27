@@ -13,6 +13,17 @@ function setup(sendOverride) {
   control.arm(target);
   return {control,sent,timers,errors,target,fire,codes:()=>sent.map(s=>s.code)};
 }
+
+test('joystick izquierdo no repite pulsaciones por ruido junto a la zona muerta',()=>{
+  let inputs=gamepadInputs({buttons:[],axes:[-.35,0]},.25);
+  assert.ok(inputs.has('a0-'));
+  for(const value of [-.299,-.301,-.295,-.305]){
+    inputs=gamepadInputs({buttons:[],axes:[value,0]},.25,inputs);
+    assert.ok(inputs.has('a0-'));
+  }
+  inputs=gamepadInputs({buttons:[],axes:[-.24,0]},.25,inputs);
+  assert.equal(inputs.size,0);
+});
 test('catálogo se resuelve por código, sin confundirlo con el ID',()=>{
   const result=resolveCommands([{codigo:'2',id_comando:87,activo:1},{codigo:0,id_comando:92,activo:1},{codigo:5,id_comando:90,activo:0}]);
   assert.equal(result.map.get(2),87);assert.equal(result.map.get(0),92);assert.ok(result.missing.includes(5));

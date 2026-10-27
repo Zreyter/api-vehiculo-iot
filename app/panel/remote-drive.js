@@ -17,16 +17,25 @@
   }
   function startRenewal(target) {
     target.lastRenewal=performance.now();
+    target.renewing=0;
     target.renewTimer=setInterval(async()=>{
-      if(target.finished)return;
+      if(target.finished || activeTarget!==target)return;
       if(document.hidden || !document.hasFocus() || !window.panelDrive?.isArmed() || performance.now()-target.lastRenewal>650) {
         window.panelDrive?.suspend('Se interrumpió la renovación del control WiFi.');return;
       }
-      if(target.renewing)return;
-      target.renewing=true;
-      try {await call('PUT','/control',target,{lease_id:target.lease});target.lastRenewal=performance.now();}
-      catch {window.panelDrive?.suspend('La sesión WiFi venció o el dispositivo tomó control serial.');}
-      finally {target.renewing=false;}
+      if(target.renewing>=2)return;
+      target.renewing++;
+      const started=performance.now();
+      try {
+        await call('PUT','/control',target,{lease_id:target.lease},{timeoutMs:600});
+        if(target.finished || activeTarget!==target)return;
+        if(performance.now()-started>650){window.panelDrive?.suspend('La confirmación de renovación llegó demasiado tarde.');return;}
+        target.lastRenewal=performance.now();
+      }
+      catch(error) {
+        if(!target.finished && activeTarget===target)window.panelDrive?.suspend(error.message+' La conducción quedó en pausa.');
+      }
+      finally {target.renewing--;}
     },200);
   }
   async function acquire(target) {

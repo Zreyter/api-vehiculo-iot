@@ -1,4 +1,13 @@
-# API de vehículo IoT — versión 1.6.2
+# API de vehículo IoT — versión 1.6.3
+
+> **Versión histórica 1.6.3.** Se publica desde las fuentes y archivos originales conservados. La [versión más reciente es 1.6.4](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.4), que incluye correcciones posteriores para pulsaciones rápidas y sesiones de conducción.
+
+[Descargar exe 1.6.3](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.3/Vehiculo-IoT-1.6.3-Windows-x64.exe) · [Descargar actualización EC2](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.3/Actualizacion-conexion-1.6.3.zip) · [Release v1.6.3](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.3).
+
+
+## Revisión local de conexión y mando 1.6.3
+
+El exe 1.6.3 reserva conexiones para renovar el control, recupera de forma limitada las lecturas/renovaciones sobre sockets reutilizados cerrados y estabiliza las entradas analógicas. Es compatible con la API 1.6.2 de EC2; el paquete de EC2 1.6.3 aplica también las mejoras del panel web. Consulta la [guía y validación](docs/CONEXION-MANDO.md). La release publicada v1.6.2 conserva sus archivos originales.
 
 ## Corrección de estabilidad 1.6.2
 
@@ -8,7 +17,7 @@ Corrige cancelaciones de sesión causadas por permisos anticipados tardíos y co
 
 API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehículo IoT, registrar movimientos individuales y transmitir secuencias DEMO. El proyecto corresponde a la actividad **2.5: APIs para IoT en entorno Dev** e integra **21 procedimientos almacenados**; conserva las **22 operaciones HTTP** anteriores y añade **cinco operaciones HTTP** para el control del ESP8266, además de los canales WebSocket de eventos y dispositivo.
 
-**Versión 1.6:** añade una aplicación portátil para Windows con la misma interfaz, teclado/mando, configuración del servidor y controles persistentes. Conserva el firmware ESP8266 WiFi/serial y su canal autenticado. La versión actual de OpenAPI es `1.6.2`. Consulta el [registro de validación](VALIDACION.md).
+**Versión 1.6:** añade una aplicación portátil para Windows con la misma interfaz, teclado/mando, configuración del servidor y controles persistentes. Conserva el firmware ESP8266 WiFi/serial y su canal autenticado. La versión actual de OpenAPI es `1.6.3`. Consulta el [registro de validación](VALIDACION.md).
 
 **Antecedente v1.4: funcionamiento en AWS demostrado y confirmado por el estudiante al cierre de esta entrega, el 21 de octubre de 2026.** La API se ejecuta en Amazon EC2 con Windows Server y utiliza MySQL en Amazon RDS. El repositorio incluye el panel web integrado, las colecciones de Postman y las guías de despliegue y operación. Esta confirmación corresponde a la aplicación y su conexión a la base de datos. Posteriormente, el usuario confirmó en este chat el funcionamiento del ESP8266 con el carro real.
 

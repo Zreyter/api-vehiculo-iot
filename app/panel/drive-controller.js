@@ -26,11 +26,15 @@
     }
     return {map, missing, ambiguous};
   }
-  function gamepadInputs(pad, deadzone = .25) {
+  function gamepadInputs(pad, deadzone = .25, previous = new Set()) {
     const inputs = new Set();
     (pad.buttons || []).forEach((b, i) => { if (b.pressed || b.value > .5) inputs.add('b' + i); });
     (pad.axes || []).forEach((v, i) => {
-      if (Math.abs(v) > deadzone) inputs.add('a' + i + (v < 0 ? '-' : '+'));
+      const input='a' + i + (v < 0 ? '-' : '+');
+      // La zona configurada siempre libera. Para entrar se exige un pequeño
+      // margen adicional que evita nuevas pulsaciones por ruido del stick.
+      const threshold=previous.has(input)?deadzone:deadzone+Math.min(.05,deadzone*.2);
+      if (Math.abs(v) > threshold) inputs.add(input);
     });
     return inputs;
   }

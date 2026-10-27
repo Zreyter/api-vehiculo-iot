@@ -6,11 +6,12 @@ const path = require('node:path');
 const {createHash,randomBytes} = require('node:crypto');
 const {createGateway,normalizeApi} = require('../src/gateway.cjs');
 
-async function fixture(t) {
+async function fixture(t,handler) {
   const received=[], sockets=new Set();
   const api=http.createServer(async(req,res)=>{
     let body='';for await(const chunk of req)body+=chunk;
     received.push({path:req.url,method:req.method,headers:req.headers,body});
+    if(handler && await handler(req,res,received))return;
     if(req.url==='/vehiculos/1/redirect'){res.writeHead(302,{Location:'http://example.com'});res.end();return;}
     res.writeHead(req.url==='/admin/denied'?401:200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true}));
   });
@@ -97,4 +98,78 @@ test('reutiliza la conexión con EC2 y no repite una escritura fallida',async t=
   }
   assert.equal(connections,1);assert.equal(received[0].headers.connection,'keep-alive');
   assert.equal(received.length,4);
+});
+
+test('historial lento no deja la renovación esperando un socket',{timeout:5000},async t=>{
+  const held=[];
+  const {gateway,received}=await fixture(t,(req,res)=>{
+    if(req.url.startsWith('/vehiculos/1/historial')){held.push(res);return true;}
+  });
+  const reads=Array.from({length:8},(_,i)=>fetch(gateway.origin+'/vehiculos/1/historial?slot='+i));
+  try {
+    while(received.length<8)await new Promise(resolve=>setTimeout(resolve,5));
+    const response=await fetch(gateway.origin+'/vehiculos/1/control',{method:'PUT',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({lease_id:'a'.repeat(32)}),signal:AbortSignal.timeout(350)});
+    assert.equal(response.status,200);await response.text();
+  } finally {
+    for(const response of held){response.writeHead(200);response.end('[]');}
+    await Promise.allSettled(reads);
+  }
+});
+
+test('renovación recupera un socket reutilizado cerrado sin repetir movimientos',async t=>{
+  let reset=false,primed;
+  const {gateway,received}=await fixture(t,(req)=>{
+    if(req.method!=='PUT')return;
+    if(!primed){primed=req.socket;return;}
+    if(!reset && req.socket===primed){reset=true;req.socket.destroy();return true;}
+  });
+  for(let i=0;i<2;i++){
+    const response=await fetch(gateway.origin+'/vehiculos/1/control',{method:'PUT',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer test-only'},body:JSON.stringify({lease_id:'a'.repeat(32)})});
+    assert.equal(response.status,200);await response.text();
+  }
+  assert.equal(reset,true);assert.equal(received.length,3);
+  assert.equal(received[2].headers.authorization,'Bearer test-only');
+  assert.equal(received[2].body,received[1].body);
+});
+
+test('lectura recupera una conexión reutilizada cerrada',async t=>{
+  let reset=false,primed;
+  const {gateway,received}=await fixture(t,(req)=>{
+    if(!primed){primed=req.socket;return;}
+    if(!reset && req.socket===primed){reset=true;req.socket.destroy();return true;}
+  });
+  for(let i=0;i<2;i++){
+    const response=await fetch(gateway.origin+'/admin/vehiculos');
+    assert.equal(response.status,200);await response.text();
+  }
+  assert.equal(reset,true);assert.equal(received.length,3);
+});
+
+test('activación fallida no se reenvía aunque el socket fuera reutilizado',async t=>{
+  let primed;
+  const {gateway,received}=await fixture(t,(req)=>{
+    if(!primed){primed=req.socket;return;}
+    if(req.socket===primed){req.socket.destroy();return true;}
+  });
+  const options={method:'POST',headers:{'Content-Type':'application/json'},body:'{"codigo":10,"lease_id":"test-only"}'};
+  const first=await fetch(gateway.origin+'/vehiculos/1/control/orden',options);await first.text();
+  const second=await fetch(gateway.origin+'/vehiculos/1/control/orden',options);
+  assert.equal(second.status,502);await second.text();assert.equal(received.length,2);
+});
+
+test('un fallo en conexión nueva de renovación se devuelve sin bucle',async t=>{
+  const {gateway,received}=await fixture(t,(req)=>{req.socket.destroy();return true;});
+  const response=await fetch(gateway.origin+'/vehiculos/1/control',{method:'PUT',body:'{}'});
+  assert.equal(response.status,502);assert.equal(received.length,1);
+});
+
+test('conexiones inactivas se retiran antes del timeout de EC2',{timeout:4000},async t=>{
+  const {gateway,api}=await fixture(t);let connections=0;
+  api.on('connection',()=>connections++);
+  const first=await fetch(gateway.origin+'/admin/vehiculos');await first.text();
+  await new Promise(resolve=>setTimeout(resolve,1500));
+  const second=await fetch(gateway.origin+'/admin/vehiculos');await second.text();
+  assert.equal(connections,2);
 });

@@ -1,6 +1,6 @@
 {
   "name": "vehiculo-iot-desktop",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Panel de escritorio para Vehículo IoT, EC2 y ESP8266",
   "private": true,
   "author": "Zreyter",

@@ -26,6 +26,7 @@
   let capture = null, padIndex = '', lastPadId = '', padDown = new Set(), padNeutral = false;
   let lastContext = '', lastCommands = '', lastAvailability = '', lastRender = '';
   let engineState, controller, padSignature = '';
+  let arming = false, armAttempt = 0;
   const inputDown = new Set();
   const panel = () => window.vehiclePanel.snapshot();
   const physical = () => !!window.RemoteDrive?.physical();
@@ -49,6 +50,7 @@
   }
   function clearInputs() { inputDown.clear(); padDown.clear(); padNeutral = false; }
   function suspend(reason) {
+    armAttempt++;
     const target=window.RemoteDrive?.target();
     capture = null; clearInputs();
     renderBindings();
@@ -84,14 +86,14 @@
     if (!engineState) return;
     const p = panel(), resolved = resolvedCommands(p.commands), ready = usable() && resolved.map.has(0) && !resolved.ambiguous.length;
     $('#driveVehicleName').textContent = p.vehicle ? p.vehicle.nombre+' · ID '+p.vehicle.id_vehiculo : 'Selecciona un vehículo';
-    $('#driveArm').disabled = engineState.pending || (!engineState.armed && !ready);
-    $('#driveArm').textContent = engineState.armed ? 'Desactivar conducción' : 'Activar conducción';
+    $('#driveArm').disabled = arming || engineState.pending || (!engineState.armed && !ready);
+    $('#driveArm').textContent = arming ? 'Preparando conexión…' : engineState.armed ? 'Desactivar conducción' : 'Activar conducción';
     $('#driveArm').setAttribute('aria-pressed', String(engineState.armed));
     $('#driveMode').textContent = engineState.armed ? 'Controles activos' : engineState.pending ? 'Liberando…' : 'Controles en pausa';
     $('#driveMode').classList.toggle('live', engineState.armed);
     $('#driveStop').disabled = !p.connected || !resolved.map.has(0);
     $('#drivePower').disabled = physical() || engineState.armed || engineState.pending;
-    $('#driveTransport').disabled=engineState.armed||engineState.pending||!!window.RemoteDrive?.ending();
+    $('#driveTransport').disabled=arming||engineState.armed||engineState.pending||!!window.RemoteDrive?.ending();
     $('#drivePower').value = engineState.power;
     const unavailable = !p.connected ? 'Conecta la API para cargar los comandos.' : !p.vehicle ? 'Selecciona un vehículo.' : p.vehicle.activo!==1 ? 'El vehículo está inactivo.' : p.running ? 'Hay una secuencia DEMO activa.' : !p.socketOpen ? 'Se necesita el canal de eventos conectado para activar la conducción.' : physical() && !window.RemoteDrive.ready() ? (window.RemoteDrive.status()?.modo==='serial'?'El puerto serial tiene el control. Envía WIFI desde el monitor serial.':'Conecta el ESP8266 en modo WIFI; esperando confirmación de salidas liberadas.') : !resolved.map.has(0) ? 'Falta un comando activo con código 0 (parar / liberar). Agrégalo en Administración.' : resolved.ambiguous.length ? 'Hay códigos repetidos: '+resolved.ambiguous.join(', ')+'. Corrígelos en Administración.' : resolved.missing.length ? 'Faltan comandos activos: '+resolved.missing.join(', ')+'. Las acciones disponibles se pueden utilizar.' : 'Los 13 comandos y la liberación están disponibles.';
     $('#driveReadiness').textContent = window.RemoteDrive?.status()?.registro_error || unavailable;
@@ -118,7 +120,7 @@
     const commands = JSON.stringify(p.commands);
     const availability = [p.page,p.connected,p.running,p.socketOpen].join(':');
     if (context!==lastContext || commands!==lastCommands || availability!==lastAvailability) {
-      if (engineState.armed) suspend('Cambió la conexión, el vehículo o la sección.');
+      if (engineState.armed || arming) suspend('Cambió la conexión, el vehículo o la sección.');
       if (context!==lastContext) { controller.setPower('unknown'); controller.idle().then(()=>controller.setPower('unknown')); }
       lastContext=context; lastCommands=commands; lastAvailability=availability;
     }
@@ -130,18 +132,34 @@
     if (engineState.armed && !usable()) suspend('La conducción quedó en pausa.');
     renderStatus();
   }
-  $('#driveArm').addEventListener('click', () => {
+  $('#driveArm').addEventListener('click', async () => {
+    if (arming) return;
     if (engineState.armed) { suspend('Conducción desactivada.'); return; }
     if (!usable()) return;
     const p = panel(), resolved = resolvedCommands(p.commands);
     if (!resolved.map.has(0) || resolved.ambiguous.length) return;
     clearInputs();
-    if (controller.arm(targetSnapshot(p))) {
-      setMessage('Mantén una tecla o botón para mover; al soltar se libera. Espacio o Esc para parar.');
-      $('#driveArm').blur();
+    const target=targetSnapshot(p), ticket=++armAttempt;
+    arming=true;renderStatus();
+    try {
+      await window.vehiclePanel.prepareDrive?.(target);
+      const current=panel();
+      if(ticket!==armAttempt || !usable() || current.generation!==p.generation || current.vehicle?.id_vehiculo!==p.vehicle?.id_vehiculo) {
+        await window.RemoteDrive?.release(target);return;
+      }
+      if (controller.arm(target)) {
+        setMessage('Mantén una tecla o botón para mover; al soltar se libera. Espacio o Esc para parar.');
+        $('#driveArm').blur();
+      }
+    } catch(error) {
+      await window.RemoteDrive?.release(target);
+      setMessage(error.message, true);
+    } finally {
+      arming=false;renderStatus();
     }
   });
   function stop() {
+    armAttempt++;
     capture=null; clearInputs();
     const p=panel(), resolved=resolvedCommands(p.commands);
     if (!engineState.armed && !engineState.pending && resolved.map.has(0) && p.connected) {

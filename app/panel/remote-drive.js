@@ -40,6 +40,9 @@
     })().catch(error=>{target.acquireFailed=true;if(activeTarget===target)activeTarget=null;throw error;});
     return target.acquiring;
   }
+  bridge.prepareDrive=async function(target) {
+    if(target.transport==='wifi')await acquire(target);
+  };
   bridge.sendDrive=async function(code,target,options={}) {
     if(target.transport!=='wifi')return legacySend(code,target);
     if(code===0 && target.acquireFailed)return {cancelado:true};

@@ -1,10 +1,20 @@
-# API de vehículo IoT — versión 1.6
+# API de vehículo IoT — versión 1.6.2
+
+## Corrección de estabilidad 1.6.2
+
+Corrige cancelaciones de sesión causadas por permisos anticipados tardíos y confirmaciones de liberación. Se actualiza la carpeta `app` de EC2; el exe 1.6.1 y el firmware actual siguen siendo compatibles. Incluye pruebas con red inestable y parada prioritaria; consulta la [guía de actualización y validación](docs/ESTABILIDAD.md).
+
+[Descargar actualización EC2 1.6.2](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.2/Actualizacion-estabilidad-1.6.2.zip) · [Descargar exe compatible 1.6.1](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.2/Vehiculo-IoT-1.6.1-Windows-x64.exe) · [Release v1.6.2](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.2).
 
 API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehículo IoT, registrar movimientos individuales y transmitir secuencias DEMO. El proyecto corresponde a la actividad **2.5: APIs para IoT en entorno Dev** e integra **21 procedimientos almacenados**; conserva las **22 operaciones HTTP** anteriores y añade **cinco operaciones HTTP** para el control del ESP8266, además de los canales WebSocket de eventos y dispositivo.
 
-**Versión 1.6:** añade una aplicación portátil para Windows con la misma interfaz, teclado/mando, configuración del servidor y controles persistentes. Conserva el firmware ESP8266 WiFi/serial y su canal autenticado. La versión de OpenAPI es `1.6.0`. Consulta el [registro de validación](VALIDACION.md).
+**Versión 1.6:** añade una aplicación portátil para Windows con la misma interfaz, teclado/mando, configuración del servidor y controles persistentes. Conserva el firmware ESP8266 WiFi/serial y su canal autenticado. La versión actual de OpenAPI es `1.6.2`. Consulta el [registro de validación](VALIDACION.md).
 
 **Antecedente v1.4: funcionamiento en AWS demostrado y confirmado por el estudiante al cierre de esta entrega, el 21 de octubre de 2026.** La API se ejecuta en Amazon EC2 con Windows Server y utiliza MySQL en Amazon RDS. El repositorio incluye el panel web integrado, las colecciones de Postman y las guías de despliegue y operación. Esta confirmación corresponde a la aplicación y su conexión a la base de datos. Posteriormente, el usuario confirmó en este chat el funcionamiento del ESP8266 con el carro real.
+
+## Revisión de latencia 1.6.1
+
+La revisión prepara sesiones y permisos antes de las pulsaciones, prioriza la liberación y reutiliza las conexiones del escritorio. Requiere actualizar la carpeta `app` de EC2 y usar el exe 1.6.1; no requiere volver a cargar el ESP8266. Consulta la [guía y medición de latencia](docs/LATENCIA.md).
 
 ## Panel web en la misma instancia
 

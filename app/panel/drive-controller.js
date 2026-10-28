@@ -10,7 +10,8 @@
     {code:1, name:'Pala izquierda', group:'pala', key:'ArrowLeft', pad:'a2-', held:true, arrow:'←'},
     {code:12, name:'Soltar pala', group:'pala', key:'ArrowDown', pad:'a3+', held:true, arrow:'↓'},
     {code:4, name:'Pala derecha', group:'pala', key:'ArrowRight', pad:'a2+', held:true, arrow:'→'},
-    {code:9, name:'Encender / apagar', group:'rapidas', key:'KeyP', pad:'b9', held:false, arrow:'⏻'},
+    {code:9, duration:200, name:'Enviar encendido (200 ms)', group:'rapidas', key:'KeyP', pad:'b9', held:false, arrow:'⏻'},
+    {code:14, wireCode:9, duration:2000, name:'Enviar apagado (2 s)', group:'rapidas', key:'KeyO', pad:'', held:false, arrow:'⏻'},
     {code:5, name:'Mute', group:'rapidas', key:'KeyZ', pad:'b2', held:false, arrow:'♪'},
     {code:6, name:'Velocidad', group:'rapidas', key:'KeyX', pad:'b0', held:false, arrow:'↗'},
     {code:7, name:'Luces LED', group:'rapidas', key:'KeyC', pad:'b3', held:false, arrow:'☀'},
@@ -20,7 +21,7 @@
   function resolveCommands(commands) {
     const map = new Map(), missing = [], ambiguous = [];
     for (const action of actions) {
-      const matches = commands.filter(c => c.activo === 1 && String(c.codigo).trim() === String(action.code));
+      const matches = commands.filter(c => c.activo === 1 && String(c.codigo).trim() === String(action.wireCode ?? action.code));
       if (matches.length === 1) map.set(action.code, matches[0].id_comando);
       else (matches.length ? ambiguous : missing).push(action.code);
     }
@@ -87,7 +88,7 @@
           if (currentPulse && pulse === currentPulse && code === pulse.code) {
             pulseTimer = timer(() => {
               if (pulse !== currentPulse) return;
-              if (code === 9) power = power === 'off' ? 'on' : 'off';
+
               pulse = null; pulseTimer = null;
               desired = armed ? latest() : 0;
               pump(); notify();
@@ -128,10 +129,10 @@
         if (code === 0) { halt('Parada'); return true; }
         const action = actions.find(a => a.code === code);
         if (!armed || pulse || !action || !context.commands.has(code) || pressed.has(source)) return false;
-        if (code === 9 && power === 'unknown') return false;
+
         notice('');
         pressed.set(source, action);
-        if (!action.held) pulse = {code, duration: code === 9 && power === 'on' ? 2000 : 200};
+        if (!action.held) pulse = {code, duration: action.duration ?? 200};
         desired = code; pump(); notify(); return true;
       },
       release(source) {

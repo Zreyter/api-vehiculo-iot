@@ -4,6 +4,20 @@ El firmware `firmware/ControlCarroWiFi/ControlCarroWiFi.ino` conserva los comand
 
 El recorrido remoto es: **Conducción → API de EC2 → WebSocket del ESP8266 → 74HC595**. La placa confirma qué salidas aplicó; esto no constituye una medición de movimiento o encendido físico del carro.
 
+## Estado vigente — 27 de octubre de 2026
+
+EC2 y la ESP8266 ya están actualizados. El usuario probó nuevas demos creadas en la página con la excavadora real y confirmó que funcionan correctamente; observó una respuesta más rápida, sin medición de latencia física. Consulta [DEMOS-FISICAS.md](DEMOS-FISICAS.md) y [ENLACE-ESTABLE.md](ENLACE-ESTABLE.md).
+
+El firmware actual requiere la copia corregida de WebSockets en `firmware/libraries/WebSockets`, con reintentos asíncronos de uno en uno. Selecciónala explícitamente desde la raíz del proyecto:
+
+```powershell
+arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 --library firmware/libraries/WebSockets firmware/ControlCarroWiFi
+```
+
+En Arduino IDE, instala esa copia local en la carpeta de bibliotecas y verifica que la compilación use su ruta, en lugar de otra copia global. Conserva `config_carro.h` privado y `ControlCarroWiFi.ino.globals.h`. Los comandos seriales `ENCENDER` y `APAGAR` envían 200 y 2000 ms por la salida 9, sin estimar el estado físico.
+
+Las instrucciones siguientes se conservan para futuras instalaciones. Las referencias a la preparación sin carga de hardware describen el estado histórico anterior.
+
 ## 1. Actualizar EC2 antes de cargar el firmware
 
 Copia la carpeta **`app` completa de esta versión** a la carpeta del proyecto en EC2 y reinicia la API. El panel anterior, por sí solo, no contiene el canal del dispositivo.

@@ -63,9 +63,9 @@ class Socket:
             response.update(tipo='preparado', permiso='' if self.empty_permission else 'nonce-de-prueba')
         elif frame['tipo'] in ('orden', 'parar'):
             self.code = frame.get('codigo', 0)
-            duration = 2000 if self.code == 9 and self.power else 200 if 5 <= self.code <= 9 else 0
+            duration = frame.get('pulso_ms',200) if self.code == 9 else 200 if 5 <= self.code <= 8 else 0
             response.update(tipo='ack', modo=self.mode, codigo=self.code, encendido_estimado=self.power,
-                            ok=not self.reject, duracion_ms=duration)
+                            ok=not self.reject, duracion_ms=duration, pulsos_encendido_explicitos=True)
         else:
             return
         await self.service.message(self.vehicle, self.device, response)
@@ -118,7 +118,12 @@ class DeviceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.repo.records, [(1, 102)])
         self.assertTrue(self.manager.events[0].salidas_aplicadas_confirmadas)
         self.assertFalse(self.manager.events[0].ejecucion_fisica_confirmada)
-        self.assertEqual([f['tipo'] for f in self.socket.frames][-2:], ['preparar','orden'])
+        orders=[(i,f) for i,f in enumerate(self.socket.frames) if f['tipo']=='orden']
+        self.assertEqual(len(orders),1)
+        index,order=orders[0]
+        # Optional prefetch may run after the ACK while the log queue drains.
+        self.assertEqual(self.socket.frames[index-1]['tipo'],'preparar')
+        self.assertEqual(self.socket.frames[index-1]['seq'],order['seq'])
 
     async def test_missing_catalogue_code_does_not_reach_outputs(self):
         key = await self.acquire()
@@ -202,7 +207,7 @@ class DeviceTests(unittest.IsolatedAsyncioTestCase):
     async def test_power_duration_is_taken_from_device_ack(self):
         key = await self.acquire()
         self.socket.power = True
-        result = await self.service.command(1, key, 9)
+        result = await self.service.command(1, key, 9, pulso_ms=2000)
         self.assertEqual(result['duracion_ms'], 2000)
 
     async def test_unknown_power_state_is_not_replaced_with_stale_estimate(self):

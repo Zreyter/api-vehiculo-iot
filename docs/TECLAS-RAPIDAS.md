@@ -1,5 +1,7 @@
 # Versión 1.6.4: pulsaciones rápidas y sesión de conducción
 
+Este documento conserva la corrección y las pruebas de 1.6.4. Para la versión vigente, incluidas las demos físicas y el firmware revisado, consulta [RELEASE-1.6.5.md](RELEASE-1.6.5.md).
+
 **Actualiza primero la carpeta `app` de EC2 y después usa el exe 1.6.4.** Esta corrección necesita ambos lados: el servidor verifica el orden de las solicitudes. El firmware actual del ESP8266 sigue siendo compatible y no se vuelve a cargar.
 
 ## Qué se reprodujo

@@ -1,5 +1,32 @@
 # Validación — Actividad 2.5, integración de los 21 SP
 
+## Publicación 1.6.5 — 28 de octubre de 2026
+
+Se reúnen las demos físicas, las pulsaciones explícitas de encendido/apagado, la corrección de renovaciones y la biblioteca WebSockets local corregida. API, lanzador y paquete de escritorio se identifican como 1.6.5. Se reconstruye el ejecutable y se preparan paquetes públicos de EC2 y firmware sin configuración privada. La comprobación física confirmada por el usuario se conserva en el apartado siguiente; publicar esta versión no implica un despliegue nuevo en EC2 ni una nueva prueba mecánica.
+
+Comprobación de publicación: 145 pruebas Python, 37 JavaScript del panel y 15 del adaptador de escritorio aprobadas; tres escenarios de navegador correctos. El exe 1.6.5 arrancó con un perfil temporal y confirmó versión, recurso de demos, autenticación, eventos, dispositivo simulado y botones explícitos. Se verificó el contenido ASAR sin configuración privada. No se enviaron nuevas órdenes a la excavadora real en esta preparación.
+
+Consulta [la guía de la versión 1.6.5](docs/RELEASE-1.6.5.md) para instalación y compatibilidad.
+
+## Demos físicas y estabilidad del enlace — 27 de octubre de 2026
+
+Estado actual: API y panel actualizados en EC2, firmware cargado en la ESP8266 y **nuevas demos de la página probadas con la excavadora real y confirmadas como correctas por el usuario**. El operador también observó una respuesta más rápida; es una apreciación cualitativa, sin una medición nueva de latencia física.
+
+Cambios incorporados:
+
+- Ejecución de los movimientos guardados con duración limitada por la placa, salidas liberadas durante las pausas, cancelación y parada por pérdida de conexión; la demo física del mando (código 8) sigue siendo una función independiente.
+- Pulsaciones explícitas de encendido (200 ms) y apagado (2000 ms), ambas por la salida 9 y sin depender de un estado supuesto del mando o la excavadora.
+- Renovaciones ordenadas en el panel para que una respuesta antigua no suspenda una sesión que recibió una confirmación posterior; una pérdida real sigue exigiendo reactivación manual.
+- Saludo inicial recuperable, diagnóstico de enlace y biblioteca WebSockets 2.7.2 con reintentos asíncronos de uno en uno e identificación del objeto TCP al cerrar.
+
+Validaciones técnicas realizadas antes de la confirmación manual: 145 pruebas Python, 37 JavaScript, tres recorridos del navegador y compilación/carga del firmware. Con las salidas en cero se comprobaron 320 renovaciones antes y otras 320 después de reiniciar EC2; no aparecieron nuevos cortes durante esas sesiones. Tras la recuperación hubo 371 consultas correctas, una conexión y cero cierres. Una sesión sin renovaciones venció y rechazó la renovación tardía con 409, manteniendo las salidas en cero.
+
+La prueba manual del usuario confirma el funcionamiento observado de las demos reales; no constituye una medición por sensores ni una confirmación manual individual de todos los casos de fallo. Se mantienen los límites de seguridad: watchdog de hasta 800 ms, permiso de control de 900 ms, frescura de confirmaciones del panel de 650 ms y detección de silencio del dispositivo de tres segundos. No hay reanudación automática de movimientos o demos tras reconectar.
+
+Guías vigentes: [demos físicas](docs/DEMOS-FISICAS.md), [pulsaciones de encendido/apagado](docs/PULSOS-ENCENDIDO.md) y [estabilidad del enlace y resultados](docs/ENLACE-ESTABLE.md). Las próximas actualizaciones de la app de EC2 se entregan como ZIP con instrucciones para carga manual, según la preferencia del usuario.
+
+Los apartados siguientes conservan el registro histórico de sus revisiones; sus pendientes no sustituyen este estado actual.
+
 ## Versión 1.6 — 26 de octubre de 2026
 
 La aplicación de escritorio y OpenAPI se identifican como `1.6.0`; la etiqueta Git es `v1.6`. La release incluye el ejecutable portátil Windows x64, instrucciones de uso y checksum SHA256. Las fuentes reproducibles se encuentran en `desktop`.

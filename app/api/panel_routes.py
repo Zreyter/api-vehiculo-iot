@@ -35,7 +35,7 @@ async def panel():
 
 @router.get("/panel/{asset}", include_in_schema=False)
 async def panel_asset(asset: str):
-    if asset not in {"panel.css", "panel.js", "drive-controller.js", "driving.js", "remote-drive.js"}:
+    if asset not in {"panel.css", "panel.js", "demo-control.js", "drive-controller.js", "driving.js", "remote-drive.js"}:
         raise HTTPException(404, "Archivo no encontrado.")
     return FileResponse(PANEL / asset, headers=HEADERS)
 

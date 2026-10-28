@@ -14,7 +14,8 @@
     if (saved) {
       const validKeys = new Set(), validPads = new Set();
       for (const a of actions) {
-        const k = saved.keys?.[a.code], p = saved.pads?.[a.code];
+        const k = saved.keys?.[a.code] ?? a.key, p = saved.pads?.[a.code] ?? a.pad;
+        saved.keys[a.code]=k; saved.pads[a.code]=p;
         if (typeof k !== 'string' || (k && (!bindableKey(k) || validKeys.has(k)))) throw Error();
         if (!padOptions.some(([id]) => id === p) || (p && validPads.has(p))) throw Error();
         if (k) validKeys.add(k); if (p) validPads.add(p);
@@ -71,10 +72,10 @@
   });
   engineState = controller.snapshot();
   function controlButton(a) {
-    return '<button type="button" class="drive-key" data-drive="'+a.code+'" aria-label="'+esc(a.name)+'" aria-pressed="false" disabled><span class="drive-symbol">'+a.arrow+'</span><strong>'+a.name+'</strong><span class="drive-shortcut" data-shortcut="'+a.code+'"></span><small>Código '+a.code+' · '+(a.held?'mantener':a.code===9?'200 ms / 2 s':'200 ms')+'</small></button>';
+    return '<button type="button" class="drive-key" data-drive="'+a.code+'" aria-label="'+esc(a.name)+'" aria-pressed="false" disabled><span class="drive-symbol">'+a.arrow+'</span><strong>'+a.name+'</strong><span class="drive-shortcut" data-shortcut="'+a.code+'"></span><small>Código '+(a.wireCode ?? a.code)+' · '+(a.held?'mantener':a.duration===2000?'2 s':'200 ms')+'</small></button>';
   }
   for (const group of ['carro','pala','rapidas']) $('#drive-'+group).innerHTML = actions.filter(a => a.group===group).map(controlButton).join('');
-  $('#driveBindings').innerHTML = actions.map(a => '<tr><td><strong>'+esc(a.name)+'</strong><span class="binding-code">Código '+a.code+'</span></td><td><button type="button" class="btn small binding-key" data-bind="'+a.code+'"></button><button type="button" class="binding-clear" data-unbind="'+a.code+'" aria-label="Quitar tecla de '+esc(a.name)+'">×</button></td><td><select data-pad-bind="'+a.code+'" aria-label="Control del mando para '+esc(a.name)+'">'+padOptions.map(([id,name])=>'<option value="'+id+'">'+name+'</option>').join('')+'</select></td></tr>').join('');
+  $('#driveBindings').innerHTML = actions.map(a => '<tr><td><strong>'+esc(a.name)+'</strong><span class="binding-code">Código '+(a.wireCode ?? a.code)+'</span></td><td><button type="button" class="btn small binding-key" data-bind="'+a.code+'"></button><button type="button" class="binding-clear" data-unbind="'+a.code+'" aria-label="Quitar tecla de '+esc(a.name)+'">×</button></td><td><select data-pad-bind="'+a.code+'" aria-label="Control del mando para '+esc(a.name)+'">'+padOptions.map(([id,name])=>'<option value="'+id+'">'+name+'</option>').join('')+'</select></td></tr>').join('');
   function renderBindings() {
     $$('[data-bind]').forEach(b => { b.textContent = capture===Number(b.dataset.bind)?'Pulsa una tecla…':keyText(preferences.keys[b.dataset.bind]) || 'Sin asignar'; });
     $$('[data-pad-bind]').forEach(s => { s.value = preferences.pads[s.dataset.padBind]; s.disabled = engineState.armed; });
@@ -93,16 +94,16 @@
     $('#driveMode').textContent = engineState.armed ? 'Controles activos' : engineState.pending ? 'Liberando…' : 'Controles en pausa';
     $('#driveMode').classList.toggle('live', engineState.armed);
     $('#driveStop').disabled = !p.connected || !resolved.map.has(0);
-    $('#drivePower').disabled = physical() || engineState.armed || engineState.pending;
+
     $('#driveTransport').disabled=arming||engineState.armed||engineState.pending||!!window.RemoteDrive?.ending();
-    $('#drivePower').value = engineState.power;
+
     const unavailable = !p.connected ? 'Conecta la API para cargar los comandos.' : !p.vehicle ? 'Selecciona un vehículo.' : p.vehicle.activo!==1 ? 'El vehículo está inactivo.' : p.running ? 'Hay una secuencia DEMO activa.' : !p.socketOpen ? 'Se necesita el canal de eventos conectado para activar la conducción.' : physical() && !window.RemoteDrive.ready() ? (window.RemoteDrive.status()?.modo==='serial'?'El puerto serial tiene el control. Envía WIFI desde el monitor serial.':'Conecta el ESP8266 en modo WIFI; esperando confirmación de salidas liberadas.') : !resolved.map.has(0) ? 'Falta un comando activo con código 0 (parar / liberar). Agrégalo en Administración.' : resolved.ambiguous.length ? 'Hay códigos repetidos: '+resolved.ambiguous.join(', ')+'. Corrígelos en Administración.' : resolved.missing.length ? 'Faltan comandos activos: '+resolved.missing.join(', ')+'. Las acciones disponibles se pueden utilizar.' : 'Los 13 comandos y la liberación están disponibles.';
     $('#driveReadiness').textContent = window.RemoteDrive?.status()?.registro_error || unavailable;
     const deviceStatus=window.RemoteDrive?.status();
     $('#driveDeviceState').textContent=physical()?(deviceStatus?.conectado?'ESP8266 · '+deviceStatus.modo.toUpperCase()+' · salida '+deviceStatus.codigo_activo:'ESP8266 sin conexión'):'Registro de software; sin activar salidas del ESP8266.';
     $$('[data-drive]').forEach(b => {
       const code = Number(b.dataset.drive);
-      b.disabled = !engineState.armed || !resolved.map.has(code) || engineState.pulse!==null || (code===9 && engineState.power==='unknown');
+      b.disabled = !engineState.armed || !resolved.map.has(code) || engineState.pulse!==null || ([9,14].includes(code) && physical() && !window.RemoteDrive.status()?.pulsos_encendido_explicitos);
       b.classList.toggle('pressed', engineState.armed && engineState.active===code);
       b.setAttribute('aria-pressed', String(engineState.armed && engineState.active===code));
     });
@@ -113,8 +114,7 @@
     const statusText = engineState.stopFailed ? 'Liberación sin confirmar' : engineState.pending ? 'Enviando a la API…' : name && engineState.confirmed!==false ? name+(physical()?' · salidas confirmadas por el ESP8266':' · confirmado por la API') : 'Esperando una entrada';
     const statusKey = statusText + engineState.power;
     if (lastRender!==statusKey) { $('#driveActivity').textContent=statusText; lastRender=statusKey; }
-    $('#drivePowerHint').textContent = engineState.power==='unknown' ? 'Antes de usar encendido, indica el estado supuesto del carro.' : 'Estado supuesto: '+(engineState.power==='on'?'encendido':'apagado')+'. Sin confirmación del dispositivo.';
-    if(physical())$('#drivePowerHint').textContent=engineState.power==='unknown'?'El firmware no conoce el estado supuesto. Corrígelo por serial con ENCENDIDO 0 o ENCENDIDO 1, con las salidas liberadas.':'Estado supuesto reportado por el firmware; no hay un sensor de encendido.';
+    $('#drivePowerHint').textContent = physical() && !window.RemoteDrive.status()?.pulsos_encendido_explicitos ? 'Actualiza el firmware para enviar las pulsaciones de encendido y apagado.' : 'Solo se envía una pulsación al mando: 200 ms para encendido o 2 s para apagado. Comprueba el resultado en el equipo; no hay sensor de encendido.';
   }
   function sync() {
     const p = panel(), context = p.generation+':'+(p.vehicle?.id_vehiculo || '')+':'+physical();
@@ -125,11 +125,7 @@
       if (context!==lastContext) { controller.setPower('unknown'); controller.idle().then(()=>controller.setPower('unknown')); }
       lastContext=context; lastCommands=commands; lastAvailability=availability;
     }
-    if(physical() && !engineState.armed && !engineState.pending) {
-      const value=window.RemoteDrive.status()?.encendido_estimado;
-      const power=value===true?'on':value===false?'off':'unknown';
-      if(engineState.power!==power)controller.setPower(power);
-    }
+
     if (engineState.armed && !usable()) suspend('La conducción quedó en pausa.');
     renderStatus();
   }
@@ -223,7 +219,7 @@
     preferences.pads[code]=value;save();renderBindings();
   });
   $('#driveReset').addEventListener('click',()=>{preferences=defaults();capture=null;save();renderBindings();setMessage('Asignaciones originales restauradas.');});
-  $('#drivePower').addEventListener('change',e=>controller.setPower(e.target.value));
+
   $('#driveDeadzone').addEventListener('input',e=>{preferences.deadzone=Number(e.target.value);save();renderBindings();});
   $('#drivePad').addEventListener('change',e=>{padIndex=e.target.value;lastPadId='';clearInputs();});
   function readPads() { try{return navigator.getGamepads?Array.from(navigator.getGamepads()).filter(p=>p&&p.connected):[];}catch{return [];} }

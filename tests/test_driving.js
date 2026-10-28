@@ -76,12 +76,12 @@ test('un pulso de 200 ms no se corta al soltar ni se repite mientras se mantiene
   s.control.press(5,'Z');await s.control.idle();s.fire();await s.control.idle();s.control.press(5,'Z');await s.control.idle();
   assert.deepEqual(s.codes(),[5,0,5,0]);
 });
-test('encendido requiere estado supuesto y protege los 2 segundos de apagado',async()=>{
-  const s=setup();assert.equal(s.control.press(9,'P'),false);
-  await s.control.halt();s.control.setPower('on');s.control.arm(s.target);s.control.press(9,'P');await s.control.idle();
+test('encendido y apagado envían pulsaciones independientes sin estado supuesto',async()=>{
+  const s=setup();assert.equal(s.control.press(9,'P'),true);await s.control.idle();
+  assert.equal([...s.timers.values()][0].ms,200);assert.equal(s.control.press(14,'O'),false);
+  s.fire();await s.control.idle();s.control.release('P');
+  assert.equal(s.control.press(14,'O'),true);await s.control.idle();
   assert.equal([...s.timers.values()][0].ms,2000);assert.equal(s.control.press(2,'W'),false);
-  s.fire();await s.control.idle();assert.equal(s.control.snapshot().power,'off');
-  s.control.release('P');s.control.press(9,'P');await s.control.idle();assert.equal([...s.timers.values()][0].ms,200);
   await s.control.halt();assert.equal(s.control.snapshot().power,'unknown');assert.equal(s.timers.size,0);
 });
 test('cambio de sección, foco o mando cancela todas las fuentes y exige reactivar',async()=>{

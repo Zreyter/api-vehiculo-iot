@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DEFAULT_API = 'http://3.233.212.203:8000';
-const PANEL_FILES = new Set(['panel.css','panel.js','drive-controller.js','driving.js','remote-drive.js']);
+const PANEL_FILES = new Set(['panel.css','demo-control.js','panel.js','drive-controller.js','driving.js','remote-drive.js']);
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
 function normalizeApi(value) {
@@ -49,7 +49,7 @@ async function createGateway({apiUrl = DEFAULT_API, assets, onSave = async () =>
     try {
       if (!permitted(req)) return send(res,403,{detail:'Origen local no permitido.'});
       const url = new URL(req.url,origin);
-      if (url.pathname === '/desktop/config' && req.method === 'GET') return send(res,200,{apiUrl:target,version:'1.6.4'});
+      if (url.pathname === '/desktop/config' && req.method === 'GET') return send(res,200,{apiUrl:target,version:'1.6.5'});
       if (url.pathname === '/desktop/connect' && req.method === 'POST') {
         if (req.headers.origin !== origin || !req.headers['content-type']?.startsWith('application/json')) return send(res,403,{detail:'Solicitud no permitida.'});
         let body='';

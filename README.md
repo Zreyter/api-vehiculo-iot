@@ -1,6 +1,24 @@
-# API de vehículo IoT — versión 1.6.4
+# API de vehículo IoT — versión 1.6.5
 
-## Pulsaciones rápidas y conducción: 1.6.4
+## Versión 1.6.5 — demos físicas y enlace estable
+
+Integra las demos creadas en la página con la excavadora, los botones de pulsación de encendido/apagado y la corrección de cortes del enlace ESP8266–EC2. El usuario confirmó el funcionamiento de nuevas demos con la excavadora real y observó una respuesta más rápida; no se atribuye una medición de latencia mecánica.
+
+[Descargar exe 1.6.5 para Windows x64](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.5/Vehiculo-IoT-1.6.5-Windows-x64.exe) · [ZIP de EC2 1.6.5](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.5/Actualizacion-EC2-1.6.5.zip) · [Fuentes del firmware 1.6.5](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.5/Firmware-ESP8266-1.6.5.zip) · [Release v1.6.5](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.5).
+
+Consulta [cambios, compatibilidad y carga manual](docs/RELEASE-1.6.5.md). La app y el firmware de la revisión funcional ya se probaron en EC2 y la placa; el ZIP 1.6.5 actualiza también el número de versión de la API. Su publicación en GitHub no vuelve a desplegar EC2 automáticamente.
+
+## Demos físicas probadas con la excavadora real
+
+El panel ejecuta los pasos guardados mediante el ESP8266, con duración limitada en la placa, liberación antes de cada pausa, cancelación y parada por pérdida de conexión. La API de EC2 y la ESP8266 ya están actualizadas. El 27 de octubre de 2026, el usuario confirmó que las nuevas demos creadas en la página funcionan correctamente con la excavadora real y observó una respuesta más rápida; esta última es una apreciación cualitativa. Consulta [actualización, alcance y pruebas](docs/DEMOS-FISICAS.md).
+
+## Enlace estable y pulsaciones explícitas
+
+Se corrigieron las renovaciones fuera de orden del panel y los reintentos simultáneos de conexión del firmware. La desconexión real sigue liberando salidas y exige reactivación manual. Encendido y apagado envían pulsaciones de 200 y 2000 ms sin suponer el estado del equipo. Consulta [el enlace y sus pruebas](docs/ENLACE-ESTABLE.md), [los botones de encendido/apagado](docs/PULSOS-ENCENDIDO.md) y [el registro de validación](VALIDACION.md).
+
+Las siguientes actualizaciones de la app de EC2 se entregan en ZIP con instrucciones para que el usuario las suba manualmente. La release 1.6.5 incluye el ejecutable reconstruido con este panel; las releases anteriores conservan sus ejecutables originales.
+
+## Antecedente: pulsaciones rápidas y conducción 1.6.4
 
 Actualiza **la API de EC2 y el exe a 1.6.4**. El servidor comprueba la capacidad de registro antes de activar, conserva la sesión si RDS está ocupado y descarta solicitudes anteriores a una liberación. El cliente exige una nueva pulsación tras el aviso de guardado; el firmware actual sigue siendo compatible. Consulta la [guía y pruebas de pulsaciones rápidas](docs/TECLAS-RAPIDAS.md).
 
@@ -18,7 +36,7 @@ Corrige cancelaciones de sesión causadas por permisos anticipados tardíos y co
 
 API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehículo IoT, registrar movimientos individuales y transmitir secuencias DEMO. El proyecto corresponde a la actividad **2.5: APIs para IoT en entorno Dev** e integra **21 procedimientos almacenados**; conserva las **22 operaciones HTTP** anteriores y añade **cinco operaciones HTTP** para el control del ESP8266, además de los canales WebSocket de eventos y dispositivo.
 
-**Versión 1.6:** añade una aplicación portátil para Windows con la misma interfaz, teclado/mando, configuración del servidor y controles persistentes. Conserva el firmware ESP8266 WiFi/serial y su canal autenticado. La versión actual de OpenAPI es `1.6.4`. Consulta el [registro de validación](VALIDACION.md).
+**Versión 1.6:** añade una aplicación portátil para Windows con la misma interfaz, teclado/mando, configuración del servidor y controles persistentes. Conserva el firmware ESP8266 WiFi/serial y su canal autenticado. La versión actual de OpenAPI es `1.6.5`. Consulta el [registro de validación](VALIDACION.md).
 
 **Antecedente v1.4: funcionamiento en AWS demostrado y confirmado por el estudiante al cierre de esta entrega, el 21 de octubre de 2026.** La API se ejecuta en Amazon EC2 con Windows Server y utiliza MySQL en Amazon RDS. El repositorio incluye el panel web integrado, las colecciones de Postman y las guías de despliegue y operación. Esta confirmación corresponde a la aplicación y su conexión a la base de datos. Posteriormente, el usuario confirmó en este chat el funcionamiento del ESP8266 con el carro real.
 
@@ -73,7 +91,7 @@ La API permite:
 - Consultar un máximo de diez registros recientes del historial.
 - Iniciar o cancelar una DEMO y transmitir sus eventos a varios clientes WebSocket.
 
-Los eventos de las rutas anteriores representan operaciones de software y cambios confirmados en la base de datos. El nuevo canal del dispositivo distingue la confirmación de salidas de la confirmación de registro en RDS. **Todavía no confirman que el ESP8266 o el vehículo hayan ejecutado un movimiento físico.**
+Las DEMO en modo registro representan operaciones de software y cambios confirmados en la base de datos; el panel actualizado solicita modo físico y confirma las salidas de cada paso. El nuevo canal del dispositivo distingue la confirmación de salidas de la confirmación de registro en RDS. **Todavía no confirman que el ESP8266 o el vehículo hayan ejecutado un movimiento físico.**
 
 ### Versiones del repositorio
 
@@ -335,4 +353,4 @@ La separación por clases mantiene configuración/conexión, repositorios, servi
 
 Si falla una escritura se intenta rollback y no se publica éxito. Una pérdida de conexión durante COMMIT puede dejar un resultado incierto: consulta el recurso antes de repetir una creación o un movimiento. No hay reintentos automáticos de escritura.
 
-El SP de historial devuelve actualmente todos los registros ordenados; la API limita su respuesta a diez. Optimizar la lectura en MySQL requeriría una revisión posterior del SP. La coordinación entre varios procesos y la confirmación física del ESP8266 quedan fuera de la implementación actual.
+El SP de historial devuelve actualmente todos los registros ordenados; la API limita su respuesta a diez. Optimizar la lectura en MySQL requeriría una revisión posterior del SP. La coordinación entre varios procesos queda fuera de la implementación actual. La ESP8266 confirma salidas aplicadas; no mide movimiento mecánico mediante sensores.

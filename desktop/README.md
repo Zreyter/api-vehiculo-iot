@@ -2,9 +2,9 @@
 
 Aplicación portátil para Windows x64 que utiliza el panel de `app/panel` y la misma API FastAPI de EC2. Incluye Conducción por WiFi, teclado y mando, administración, historial, secuencias DEMO y eventos en vivo.
 
-## Conducción con pulsaciones rápidas: 1.6.4
+## Antecedente: pulsaciones rápidas 1.6.4
 
-El nuevo exe 1.6.4 necesita actualizar también la API de EC2 a 1.6.4. Añade intención creciente para impedir solicitudes anteriores a una liberación y maneja el aviso de cola RDS ocupada sin reactivar entradas mantenidas. Consulta la [guía de pulsaciones rápidas](../docs/TECLAS-RAPIDAS.md). El firmware actual sigue siendo compatible.
+El exe 1.6.4 necesita actualizar también la API de EC2 a 1.6.4. Añade intención creciente para impedir solicitudes anteriores a una liberación y maneja el aviso de cola RDS ocupada sin reactivar entradas mantenidas. Consulta la [guía de pulsaciones rápidas](../docs/TECLAS-RAPIDAS.md). El firmware actual sigue siendo compatible.
 
 ## Antecedente: revisión 1.6.3
 
@@ -12,11 +12,9 @@ El exe anterior 1.6.3 corrige conexiones y renovaciones del control e incorpora 
 
 ## Descargar
 
-[Descargar Vehículo IoT 1.6.4 para Windows x64](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.4/Vehiculo-IoT-1.6.4-Windows-x64.exe). La [release v1.6.4](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.4) incluye el [paquete de actualización EC2 1.6.4](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.4/Actualizacion-teclas-1.6.4.zip), instrucciones y checksums SHA256.
+[Descargar Vehículo IoT 1.6.5 para Windows x64](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.5/Vehiculo-IoT-1.6.5-Windows-x64.exe). La [release v1.6.5](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.5) incluye el [ZIP de EC2](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.5/Actualizacion-EC2-1.6.5.zip), las [fuentes del firmware](https://github.com/Zreyter/api-vehiculo-iot/releases/download/v1.6.5/Firmware-ESP8266-1.6.5.zip), instrucciones y checksums SHA256.
 
-**Actualiza primero la API de EC2 y después abre el exe 1.6.4.** El firmware ESP8266 actual sigue siendo compatible.
-
-La [release anterior v1.6.2](https://github.com/Zreyter/api-vehiculo-iot/releases/tag/v1.6.2) conserva sus descargas originales.
+El exe 1.6.5 incorpora el panel actualizado: demos físicas temporizadas, cancelación, pulsaciones explícitas de encendido/apagado y renovaciones ordenadas. Requiere la API y el firmware revisados para esas funciones. Consulta [la guía 1.6.5](../docs/RELEASE-1.6.5.md). Las descargas anteriores conservan sus archivos originales.
 
 ## Antecedente: aplicación 1.6.1 y API 1.6.2
 
@@ -26,13 +24,13 @@ La [release anterior v1.6](https://github.com/Zreyter/api-vehiculo-iot/releases/
 
 ## Uso
 
-1. Abre `Vehiculo-IoT-1.6.4-Windows-x64.exe`. No necesita instalar Node.js, Python ni Arduino IDE para ejecutarse.
+1. Abre `Vehiculo-IoT-1.6.5-Windows-x64.exe`. No necesita instalar Node.js, Python ni Arduino IDE para ejecutarse.
 2. Confirma la dirección vigente de la API; inicialmente propone `http://3.233.212.203:8000`. Puedes cambiarla desde **Aplicación → Cambiar servidor**.
 3. Pulsa **Abrir mi panel → Conectar API** e introduce tu `CONTROL_TOKEN` habitual. No hay tokens incorporados en el ejecutable.
 4. Para conducir selecciona el vehículo, **Conducción → ESP8266 por WiFi → Activar conducción**. La placa debe estar conectada a la API y en modo WIFI; para cambiar desde serial envía `WIFI` en Termite.
 5. Conecta el mando a la computadora donde ejecutas esta aplicación y pulsa un botón para detectarlo. También admite teclado y ratón.
 
-La API de EC2 y el ESP8266 siguen siendo necesarios para conducir por WiFi. El modo **Solo registro en API / RDS** conserva el comportamiento de software del panel. Las secuencias SQL y el botón DEMO del carro son funciones diferentes, igual que en la página web.
+La API de EC2 y el ESP8266 siguen siendo necesarios para conducir por WiFi. El modo **Solo registro en API / RDS** conserva el comportamiento de software del panel. Las secuencias creadas en la página se ejecutan físicamente al iniciar la secuencia con la API y el firmware revisados. El botón DEMO del carro (código 8) sigue pulsando la demo automática del mando y es independiente.
 
 El token se mantiene en memoria y se solicita de nuevo al recargar o volver a abrir. La dirección del servidor y las asignaciones del mando/teclado se guardan en `%APPDATA%/vehiculo-iot-desktop/configuracion.json`. No se lee ni modifica `.env`, RDS, certificados o el entorno virtual para configurar la app.
 
@@ -44,7 +42,7 @@ Electron aloja una copia del panel y un adaptador HTTP/WebSocket que escucha exc
 
 El documento local permite utilizar Gamepad API aunque el punto de acceso de EC2 sea HTTP. El transporte hacia EC2 conserva el esquema configurado: seleccionar HTTP no cifra ese tramo; HTTPS utiliza la validación normal del certificado. No se desactiva la seguridad web ni se concede acceso a Node.js al panel.
 
-Solo se empaquetan seis archivos públicos del panel, el código de escritorio y los iconos. Las credenciales de MySQL, `.env`, certificados, firmware privado y entornos virtuales quedan fuera del paquete.
+Solo se empaquetan siete archivos públicos del panel, el código de escritorio y los iconos. Las credenciales de MySQL, `.env`, certificados, firmware privado y entornos virtuales quedan fuera del paquete.
 
 ## Construir desde el repositorio
 
@@ -56,7 +54,7 @@ npm test
 npm run dist
 ```
 
-El resultado queda en `desktop/dist/Vehiculo-IoT-1.6.4-Windows-x64.exe`. `npm run prepare:panel` copia el panel vigente del repositorio. Las adaptaciones exclusivas del escritorio se aplican a esa copia; no modifican los archivos servidos por FastAPI.
+El resultado queda en `desktop/dist/Vehiculo-IoT-1.6.5-Windows-x64.exe`. `npm run prepare:panel` copia el panel vigente del repositorio. Las adaptaciones exclusivas del escritorio se aplican a esa copia; no modifican los archivos servidos por FastAPI.
 
 Dependencias fijadas: Electron 45.0.0 y electron-builder 26.15.3. Se incluye `package-lock.json`.
 

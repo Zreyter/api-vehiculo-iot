@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Web
 
 from app.core.errors import ServiceError
 from app.core.security import check_token, require_control_token
-from app.models.schemas import DemoRequest, Event, HistoryItem, MovementRequest, state_event
+from app.models.schemas import DemoRequest, DemoHeartbeatRequest, Event, HistoryItem, MovementRequest, state_event
 
 router = APIRouter()
 VehicleId = Annotated[int, Path(gt=0, description="Identificador real del vehículo en MySQL")]
@@ -41,11 +41,11 @@ async def history(id_vehiculo: VehicleId, request: Request, limite: int = Query(
     "/vehiculos/{id_vehiculo}/demos", response_model=Event, status_code=202,
     dependencies=control, tags=["DEMO"], responses=errors,
     summary="Iniciar DEMO por WebSocket",
-    description="Lee y valida la secuencia en MySQL. Solo permite una DEMO por vehículo. Actualiza estado sin registrar historial; duración y pausa usan esperas asíncronas.",
+    description="Lee y valida la secuencia en MySQL. modo=registro conserva los eventos de software; modo=fisico controla el ESP8266, libera entre pasos y exige renovar /demos/activa/latido antes de 900 ms. No agrega historial DEMO ni confirma movimiento mecánico.",
 )
 async def start_demo(id_vehiculo: VehicleId, body: DemoRequest, request: Request):
     try:
-        return await request.app.state.demo_service.start(id_vehiculo, body.id_demo)
+        return await request.app.state.demo_service.start(id_vehiculo, body.id_demo, physical=body.modo == "fisico")
     except ServiceError as exc:
         request.app.state.manager.publish(state_event("error", id_vehiculo, None, id_demo=body.id_demo, mensaje=exc.detail))
         raise
@@ -55,10 +55,16 @@ async def start_demo(id_vehiculo: VehicleId, body: DemoRequest, request: Request
     "/vehiculos/{id_vehiculo}/demos/activa", response_model=Event,
     dependencies=control, tags=["DEMO"], responses=errors,
     summary="Cancelar la DEMO activa",
-    description="Interrumpe duración/pausa inmediatamente. Si SQL está en curso espera su conclusión y suprime el evento de ese movimiento. Al responder no habrá más pasos de esa DEMO. No envía un comando físico de parada.",
+    description="Interrumpe duración/pausa y solicita parada física prioritaria en modo fisico. SQL pendiente no bloquea la liberación de salidas. No confirma cancelación física si la placa no confirma cero.",
 )
 async def cancel_demo(id_vehiculo: VehicleId, request: Request):
     return await request.app.state.demo_service.cancel(id_vehiculo)
+
+
+@router.post("/vehiculos/{id_vehiculo}/demos/activa/latido", dependencies=control,
+             tags=["DEMO"], responses=errors, summary="Renovar ejecución física DEMO")
+async def renew_demo(id_vehiculo: VehicleId, body: DemoHeartbeatRequest, request: Request):
+    return request.app.state.demo_service.renew(id_vehiculo, body.id_ejecucion)
 
 
 @router.websocket("/ws/vehiculos/{id_vehiculo}")

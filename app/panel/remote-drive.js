@@ -18,22 +18,30 @@
   function startRenewal(target) {
     target.lastRenewal=performance.now();
     target.renewing=0;
+    target.renewIssued=0;target.renewConfirmed=0;target.renewStopped=false;
+    const suspendRenewal=reason=>{
+      if(target.renewStopped)return;
+      target.renewStopped=true;
+      window.panelDrive?.suspend(reason);
+    };
     target.renewTimer=setInterval(async()=>{
-      if(target.finished || activeTarget!==target)return;
+      if(target.finished || activeTarget!==target || target.renewStopped)return;
       if(document.hidden || !document.hasFocus() || !window.panelDrive?.isArmed() || performance.now()-target.lastRenewal>650) {
-        window.panelDrive?.suspend('Se interrumpió la renovación del control WiFi.');return;
+        suspendRenewal('Se interrumpió la renovación del control WiFi.');return;
       }
       if(target.renewing>=2)return;
       target.renewing++;
+      const request=++target.renewIssued;
       const started=performance.now();
       try {
         await call('PUT','/control',target,{lease_id:target.lease},{timeoutMs:600});
-        if(target.finished || activeTarget!==target)return;
-        if(performance.now()-started>650){window.panelDrive?.suspend('La confirmación de renovación llegó demasiado tarde.');return;}
+        if(target.finished || activeTarget!==target || target.renewStopped || request<target.renewConfirmed)return;
+        if(performance.now()-started>650){suspendRenewal('La confirmación de renovación llegó demasiado tarde.');return;}
+        target.renewConfirmed=request;
         target.lastRenewal=performance.now();
       }
       catch(error) {
-        if(!target.finished && activeTarget===target)window.panelDrive?.suspend(error.message+' La conducción quedó en pausa.');
+        if(!target.finished && activeTarget===target && request>=target.renewConfirmed)suspendRenewal(error.message+' La conducción quedó en pausa.');
       }
       finally {target.renewing--;}
     },200);
@@ -69,7 +77,7 @@
     }
     await acquire(target);
     if(code!==0 && (target.finished || options.stillWanted?.()===false))return {cancelado:true};
-    const result=await call('POST','/control/orden',target,{lease_id:target.lease,codigo:code,intencion:intent},{keepalive:code===0});
+    const result=await call('POST','/control/orden',target,{lease_id:target.lease,codigo:code===14?9:code,...([9,14].includes(code)?{pulso_ms:code===14?2000:200}:{}),intencion:intent},{keepalive:code===0});
     if(code===0)this.lastDriveTarget=null;
     return result;
   };

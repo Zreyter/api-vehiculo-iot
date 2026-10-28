@@ -15,6 +15,12 @@ class DemoRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id_demo: int = Field(gt=0, strict=True)
+    modo: Literal["registro", "fisico"] = "registro"
+
+
+class DemoHeartbeatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id_ejecucion: str = Field(pattern=r"^[0-9a-f]{32}$")
 
 
 class DemoStep(BaseModel):
@@ -54,6 +60,8 @@ class Event(BaseModel):
     mensaje: str | None = None
     ejecucion_fisica_confirmada: bool = False
     salidas_aplicadas_confirmadas: bool = False
+    modo_demo: Literal["registro", "fisico"] | None = None
+    id_ejecucion: str | None = None
 
 
 def state_event(kind: str, vehicle_id: int, state: dict | None, **kwargs) -> Event:

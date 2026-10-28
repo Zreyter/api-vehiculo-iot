@@ -23,7 +23,7 @@ function fixture(protocol=2) {
   vm.runInNewContext(fs.readFileSync(path.resolve(__dirname,'../app/panel/remote-drive.js'),'utf8'),context);
   const target=()=>({transport:'wifi',vehicle:1,token:'test-only',generation:1});
   const tick=time=>{now=time;return [...timers.values()].find(t=>t.ms===200).callback();};
-  return {bridge,remote:window.RemoteDrive,calls,suspensions,pending,target,tick};
+  return {bridge,remote:window.RemoteDrive,calls,suspensions,pending,target,tick,setNow:value=>{now=value;}};
 }
 
 test('renovaciones pueden continuar mientras una respuesta anterior tarda',async()=>{
@@ -53,6 +53,35 @@ test('renovación vigente fallida conserva la pausa',async()=>{
   const s=fixture();await s.bridge.prepareDrive(s.target());
   const tick=s.tick(200);s.pending[0].reject(new Error('HTTP 409'));await tick;
   assert.equal(s.suspensions.length,1);
+});
+
+test('un fallo antiguo no revoca una renovación posterior confirmada de la misma sesión',async()=>{
+  const s=fixture();await s.bridge.prepareDrive(s.target());
+  const old=s.tick(200),fresh=s.tick(400);
+  s.setNow(570);s.pending[1].resolve({vence_en_ms:900});await fresh;
+  s.setNow(790);s.pending[0].reject(new Error('Timeout anterior'));await old;
+  assert.equal(s.suspensions.length,0);
+});
+
+test('una respuesta antigua lenta no suspende ni rejuvenece la confirmación más reciente',async()=>{
+  const s=fixture();await s.bridge.prepareDrive(s.target());
+  const old=s.tick(200),fresh=s.tick(400);
+  s.setNow(570);s.pending[1].resolve({vence_en_ms:900});await fresh;
+  s.setNow(900);s.pending[0].resolve({vence_en_ms:900});await old;
+  assert.equal(s.suspensions.length,0);
+  await s.tick(1250);assert.equal(s.suspensions.length,1);
+});
+
+test('tras una pérdida real las respuestas tardías no reactivan renovaciones',async()=>{
+  const s=fixture();await s.bridge.prepareDrive(s.target());
+  const old=s.tick(200),fresh=s.tick(400);
+  s.pending[1].reject(new Error('HTTP 409'));await fresh;
+  s.pending[0].resolve({vence_en_ms:900});await old;
+  const next=s.tick(500),count=s.pending.length;
+  if(count>2)s.pending.at(-1).resolve({vence_en_ms:900});
+  await next;
+  assert.equal(s.suspensions.length,1);
+  assert.equal(count,2);
 });
 
 test('renovaciones tienen un plazo propio y no se aceptan respuestas antiguas',async()=>{

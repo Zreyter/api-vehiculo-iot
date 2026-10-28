@@ -28,20 +28,20 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
     manager = WebSocketManager()
     coordinator = VehicleCoordinator()
     vehicles = VehicleService(repository, manager, coordinator)
-    demos = DemoService(repository, manager, coordinator)
     catalog = CatalogService(catalog_repository, coordinator, manager)
     devices = DeviceService(repository, manager, coordinator)
+    demos = DemoService(repository, manager, coordinator, devices)
 
     @asynccontextmanager
     async def lifespan(app):
         devices.start()
         yield
-        await devices.close()
         await demos.close()
+        await devices.close()
         await manager.close()
 
     application = FastAPI(
-        title="API Vehículo IoT — Actividad 2.5", version="1.6.4",
+        title="API Vehículo IoT — Actividad 2.5", version="1.6.5",
         description="Versión 1.6: aplicación de escritorio Windows, panel de conducción con teclado y mando, firmware ESP8266 WiFi/serial y los 21 SP de MySQL. Administración de vehículos, comandos y DEMO; movimiento individual, historial y transmisión WebSocket. Canal autenticado ESP8266 WiFi/serial con confirmación de salidas; no confirma movimiento mediante sensores.",
         lifespan=lifespan,
     )

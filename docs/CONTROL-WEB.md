@@ -8,7 +8,7 @@
 | Monitor | `/monitor.html` en Vercel | Diez movimientos y tramas del ESP8266. |
 | Swagger | `/docs` en la API | Operaciones REST y administración del catálogo. |
 
-El panel habilita el teclado y los joysticks al pulsar **Activar control**, incluso si la placa sigue desconectada. El estado de la placa se muestra por separado. La API solicita la sesión de conducción por WebSocket al recibir el primer movimiento. Si la placa aún no está lista, la orden se descarta. Cuando la placa esté lista, pulsa el control de nuevo.
+Al pulsar **Activar control**, el panel envía las órdenes por WebSocket y el Monitor las muestra en **Tramas en vivo**. Cuando la placa está desconectada, la orden aparece como **sin envío**. La API reenvía las órdenes nuevas al ESP8266 si está conectado por WebSocket directo. La tabla muestra las órdenes sin envío durante la sesión, mientras que el historial de MySQL conserva los envíos a la placa.
 
 **Recordar código en este dispositivo** guarda el código en el navegador después de iniciar sesión y solo lo reutiliza con la misma dirección de la API. **Salir** borra el código guardado.
 
@@ -137,13 +137,13 @@ Todos los participantes usan `/ws/vehiculos/{id}`. La placa abre `ws://<API_HOST
 | --- | --- | --- |
 | `iot-device-direct` | `Authorization: Bearer DEVICE_TOKEN` | La API envía `orden`, `parar` y `latido`. La placa puede publicar `estado` para diagnóstico. |
 | `iot-device` | `Authorization: Bearer DEVICE_TOKEN` | Compatibilidad con firmware anterior que usa saludo, preparación y ACK. |
-| `iot-control` | Subprotocolo adicional `token.<base64url>` y origen permitido | `activar`, `orden`, `latido`, `liberar`, `estado`, `demo_iniciar`, `demo_latido` y `demo_cancelar`. |
+| `iot-control` | Subprotocolo adicional `token.<base64url>` y origen permitido | `entrada`, `latido`, `liberar`, `estado`, `demo_iniciar`, `demo_latido` y `demo_cancelar`. Los clientes anteriores usan `activar` y `orden`. |
 | `iot-monitor` | Igual que el control | Estado, historial inicial, eventos y tramas del ESP8266 con campos de diagnóstico. |
 
 Ejemplo de una orden cuando se activó el control:
 
 ```json
-{"id": 7, "accion": "orden", "datos": {"codigo": 2, "intencion": 4}}
+{"id": 7, "accion": "entrada", "datos": {"codigo": 2, "intencion": 4}}
 ```
 
 La API responde con `tipo: "respuesta"`, el mismo `id`, `ok` y `datos` o `error`.

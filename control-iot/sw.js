@@ -1,5 +1,5 @@
 /* Conserva la interfaz instalable. Peticiones a la API y el token quedan fuera de la caché. */
-const cacheName = 'excavadora-shell-v5';
+const cacheName = 'excavadora-shell-v6';
 const paths = ['./', './index.html', './monitor.html', './manifest.webmanifest', './config.js', './css/styles.css',
   './js/api.js', './js/joystick.js', './js/app.js', './js/monitor.js', './js/assist.js',
   './js/drive-controller.js', './assets/favicon/excavadora-192.png', './assets/favicon/excavadora-512.png'];

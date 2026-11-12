@@ -28,12 +28,13 @@ class Monitor {
       this.render();
       return;
     }
-    if (['movimiento_individual', 'demo_movimiento'].includes(event.tipo)) {
+    if (['movimiento_individual', 'demo_movimiento', 'orden_sin_envio'].includes(event.tipo)) {
       this.rows = [{
         fecha_hora: event.marca_temporal,
         codigo: event.codigo,
-        comando: event.comando,
-        origen: event.tipo === 'demo_movimiento' ? 'Demo ' + event.id_demo + (event.orden_enviada ? ' (enviada)' : '')
+        comando: event.comando ?? 'Orden recibida',
+        origen: event.tipo === 'orden_sin_envio' ? 'Panel WS (sin envío)'
+          : event.tipo === 'demo_movimiento' ? 'Demo ' + event.id_demo + (event.orden_enviada ? ' (enviada)' : '')
           : event.orden_enviada ? 'Panel WS (enviada)' : event.estado?.origen || 'API',
       }, ...this.rows].slice(0, 10);
       this.render();

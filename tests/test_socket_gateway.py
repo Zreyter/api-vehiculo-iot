@@ -145,6 +145,53 @@ class SocketGatewayTests(unittest.TestCase):
             movement = take(monitor, lambda f: f["tipo"] == "movimiento_individual")
             self.assertEqual((movement["codigo"], movement["comando"]), (4, "PALA_DERECHA"))
 
+    def test_panel_inputs_are_monitored_offline_and_never_replayed(self):
+        db = FakeMySQL()
+        settings = Settings(_env_file=None, control_token="TestAb12", device_token="device-test",
+                            browser_origins=[self.origin], mysql_password="local-fake")
+        self.client = TestClient(create_app(settings))
+
+        def take(socket, predicate):
+            for _ in range(20):
+                frame = socket.receive_json()
+                if predicate(frame):
+                    return frame
+            self.fail("No llegó la trama esperada.")
+
+        def send_input(control, intent, code):
+            control.send_json({"id": intent, "accion": "entrada",
+                               "datos": {"codigo": code, "intencion": intent}})
+            reply = take(control, lambda f: f.get("id") == intent)
+            self.assertTrue(reply["ok"], reply)
+            return reply["datos"]
+
+        with (patch("app.core.database.mysql.connector.connect", db.connect), self.client,
+              self.open_browser("iot-monitor") as monitor, self.open_browser("iot-control") as control):
+            offline = send_input(control, 1, 2)
+            self.assertTrue(offline["recibida"])
+            self.assertFalse(offline["orden_enviada"])
+            self.assertFalse(offline["sesion_activa"])
+            incoming = take(monitor, lambda f: f["tipo"] == "orden_recibida")
+            self.assertEqual((incoming["direccion"], incoming["codigo"]), ("Panel → API", 2))
+            self.assertEqual(monitor.receive_json()["tipo"], "orden_sin_envio")
+            self.assertFalse(db.data["historial"])
+
+            with self.client.websocket_connect(self.path, subprotocols=["iot-device-direct"],
+                    headers={"authorization": "Bearer device-test"}) as device:
+                self.assertFalse(send_input(control, 2, 0)["orden_enviada"])
+                result = send_input(control, 3, 2)
+                self.assertTrue(result["orden_enviada"])
+                self.assertTrue(result["sesion_activa"])
+                self.assertFalse(result["salidas_confirmadas"])
+                self.assertEqual(device.receive_json(), {"tipo": "parar", "seq": 1})
+                self.assertEqual(device.receive_json()["codigo"], 2)
+                event = take(monitor, lambda f: f["tipo"] == "movimiento_individual")
+                self.assertTrue(event["orden_enviada"])
+                self.assertFalse(event["salidas_aplicadas_confirmadas"])
+                self.assertEqual(len(db.data["historial"]), 1)
+                self.assertTrue(send_input(control, 4, 0)["orden_enviada"])
+                self.assertEqual(device.receive_json(), {"tipo": "parar", "seq": 3})
+
     def test_direct_device_receives_orders_and_stop_without_sending_any_messages(self):
         db = FakeMySQL()
         db.data["movimientos"][501]["duracion_ms"] = 100

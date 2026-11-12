@@ -121,30 +121,6 @@ class DrivePage {
     if (this.controller.arm({ commands: this.commands, transport: 'wifi' })) this.show('');
   }
 
-  async acquireForOrder() {
-    const revision = this.revision;
-    const socket = this.api.socket;
-    this.acquiring = socket;
-    try {
-      await this.api.call('activar');
-      if (revision !== this.revision || this.api.socket !== socket) return cancelledOrder;
-      if (document.hidden) { void this.stop(); return cancelledOrder; }
-      this.lease = true;
-      this.intent = 0;
-    } catch (error) {
-      if (revision !== this.revision || this.api.socket !== socket) return cancelledOrder;
-      if (error.status === 409) {
-        void this.refreshDevice();
-        return { cancelado: true, requiere_nueva_entrada: true, mensaje: error.message };
-      }
-      // Una adquisición que excedió el plazo podría completarse en el servidor.
-      await this.api.call('liberar').catch(() => {});
-      throw error;
-    } finally {
-      this.acquiring = null;
-    }
-  }
-
   press(code, source) {
     if (code === 0) { void this.stop(); return; }
     if (code === 8) { if (!document.hidden) void this.runDemo(); return; }
@@ -172,23 +148,16 @@ class DrivePage {
   }
 
   async send(code, options) {
-    if (code !== 0) {
-      if (options.stillWanted?.() === false) return cancelledOrder;
-      if (!this.lease) {
-        const result = await this.acquireForOrder();
-        if (result) return result;
-      }
-      if (options.stillWanted?.() === false) return cancelledOrder;
-    }
-    if (!this.lease) return cancelledOrder;
+    if (!this.api.socket || (code !== 0 && options.stillWanted?.() === false)) return cancelledOrder;
+    const revision = this.revision;
     const action = actions.find(item => item.code === code);
     const data = { codigo: action.wireCode ?? code, intencion: ++this.intent };
     if (data.codigo === 9) data.pulso_ms = action.duration;
-    const result = await this.api.call('orden', data);
-    if (result.sesion_finalizada) this.lease = false;
-    if (result.orden_enviada && !result.cancelado && (code === 0 || options.stillWanted?.() !== false)) {
-      this.show(code === 0 ? 'Parada enviada por WebSocket' : 'Orden enviada por WebSocket');
-    }
+    const result = await this.api.call('entrada', data);
+    if (revision !== this.revision || data.intencion !== this.intent || result.cancelado) return result;
+    this.lease = result.sesion_activa === true;
+    if (result.orden_enviada) this.show(code === 0 ? 'Parada enviada por WebSocket' : 'Orden enviada por WebSocket');
+    else if (code && result.recibida) this.show('Orden recibida por la API. ' + (result.mensaje || ''));
     return result;
   }
 
@@ -201,7 +170,6 @@ class DrivePage {
 
   async release() {
     // Se libera la sesión por el mismo canal, aunque una orden siga en vuelo.
-    const hadControl = this.lease || this.acquiring;
     this.lease = false;
     const cancel = this.execution || this.startingDemo;
     this.execution = null;
@@ -209,7 +177,7 @@ class DrivePage {
     this.resetSticks();
     try {
       const jobs = [];
-      if (hadControl) jobs.push(this.api.call('liberar'));
+      if (this.api.socket) jobs.push(this.api.call('liberar'));
       if (cancel) jobs.push(this.api.call('demo_cancelar'));
       for (const result of await Promise.all(jobs)) {
         if (result.orden_enviada) this.show('Parada enviada por WebSocket');
@@ -248,7 +216,13 @@ class DrivePage {
     if (this.renewing === revision || (!this.execution && !this.lease)) return;
     this.renewing = revision;
     const execution = this.execution;
-    try { await this.api.call(execution ? 'demo_latido' : 'latido', {}, heartbeatTimeout); }
+    const intent = this.intent;
+    try {
+      const result = await this.api.call(execution ? 'demo_latido' : 'latido', {}, heartbeatTimeout);
+      if (!execution && result.sesion_activa === false && revision === this.revision && intent === this.intent) {
+        this.lease = false;
+      }
+    }
     catch (error) {
       if (revision === this.revision && (execution ? this.execution === execution : this.lease)) {
         this.show(error.message);

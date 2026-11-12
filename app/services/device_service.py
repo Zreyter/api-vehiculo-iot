@@ -291,7 +291,7 @@ class DeviceService:
             if lease.preparing is asyncio.current_task():
                 lease.preparing = None
 
-    async def acquire(self, vehicle_id, *, demo=None):
+    async def acquire(self, vehicle_id, *, demo=None, direct_only=False):
         async with self.coordinator.lock(vehicle_id):
             active = self.coordinator.active.get(vehicle_id)
             if self.closing or (active is not None and active is not demo) or vehicle_id in self.leases or self.coordinator.device_pending.get(vehicle_id, 0):
@@ -299,6 +299,8 @@ class DeviceService:
             device = self.devices.get(vehicle_id)
             if not device or not device.ready or device.mode != "wifi":
                 raise ServiceError(409, "Conecta el ESP8266 y selecciona WIFI en el puerto serial.")
+            if direct_only and not device.direct:
+                raise ServiceError(409, "La placa necesita el firmware WebSocket directo.")
             commands = await asyncio.to_thread(self.repository.device_catalog, vehicle_id)
             if self.devices.get(vehicle_id) is not device or not device.ready or device.mode != "wifi":
                 raise ServiceError(409, "El dispositivo cambió durante la validación del catálogo.")

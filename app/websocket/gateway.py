@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from app.core.errors import ServiceError
 from app.core.security import check_token
-from app.models.device import DeviceCommand
+from app.models.device import ControlInput, DeviceCommand
 from app.models.schemas import DemoRequest
 
 router = APIRouter()
@@ -61,12 +61,89 @@ class ControlConnection:
         self.device = app.device_service
         self.demos = app.demo_service
         self.lease = self.execution = None
+        self.input_intent = self.input_generation = 0
         self.tasks = set()
         self.lifecycle = asyncio.Lock()
         self.closed = False
 
+    def trace_input(self, kind, code, **fields):
+        self.app.manager.broadcast(self.vehicle_id, {
+            "tipo": kind,
+            "direccion": "Panel → API",
+            "marca_temporal": datetime.now(timezone.utc).isoformat(),
+            "codigo": code,
+            **fields,
+        }, role=MONITOR)
+
+    def received_without_forwarding(self, code, message):
+        if code:
+            self.trace_input("orden_sin_envio", code, mensaje=message)
+        return {"recibida": True, "orden_enviada": False, "sesion_activa": False,
+                "salidas_confirmadas": False, "mensaje": message}
+
+    async def release_input_lease(self, key):
+        if self.lease == key:
+            self.lease = None
+        try:
+            return await self.device.stop(self.vehicle_id, key)
+        except ServiceError as exc:
+            if exc.status_code != 409:
+                raise
+            return {}
+
+    async def receive_input(self, order):
+        intent, code = order.intencion, order.codigo
+        if intent is None:
+            raise ServiceError(422, "Falta la intención de la orden.")
+        if (code == 9 and order.pulso_ms not in (200, 2000)) or (code != 9 and order.pulso_ms is not None):
+            raise ServiceError(422, "El código 9 requiere un pulso de 200 o 2000 ms.")
+        if self.closed or intent <= self.input_intent:
+            return {"cancelado": True}
+        self.input_intent = intent
+        generation = self.input_generation
+        self.trace_input("orden_recibida", code, intencion=intent)
+        vehicle = self.vehicle_id
+
+        def current():
+            return not self.closed and generation == self.input_generation and intent == self.input_intent
+
+        if code and not self.lease:
+            async with self.lifecycle:
+                if not current():
+                    return {"cancelado": True}
+                if not self.lease:
+                    try:
+                        result = await self.device.acquire(vehicle, direct_only=True)
+                    except ServiceError as exc:
+                        if not current():
+                            return {"cancelado": True}
+                        return self.received_without_forwarding(code, exc.detail)
+                    key = result["lease_id"]
+                    if not current():
+                        await self.release_input_lease(key)
+                        return {"cancelado": True}
+                    self.lease = key
+
+        key = self.lease
+        if not key:
+            return self.received_without_forwarding(code, "Sin una sesión física activa.")
+        try:
+            result = await self.device.command(vehicle, key, code, intent=intent,
+                                               pulso_ms=order.pulso_ms, demo_ms=200 if code == 4 else None)
+        except ServiceError as exc:
+            if not current():
+                return {"cancelado": True}
+            await self.release_input_lease(key)
+            return self.received_without_forwarding(code, exc.detail)
+        ended = result.pop("sesion_finalizada", False)
+        if ended and self.lease == key:
+            self.lease = None
+        return {"recibida": True, "sesion_activa": self.lease == key, **result}
+
     async def dispatch(self, action, body):
         vehicle = self.vehicle_id
+        if action == "entrada":
+            return await self.receive_input(ControlInput(**body))
         if action == "estado":
             return self.device.status(vehicle)
         if action == "orden":
@@ -78,11 +155,22 @@ class ControlConnection:
                                              intent=order.intencion, pulso_ms=order.pulso_ms,
                                              demo_ms=200 if order.codigo == 4 else None)
         if action == "latido":
-            if not self.lease:
-                raise ServiceError(409, "El control está desactivado.")
-            return await self.device.renew(vehicle, self.lease)
+            key = self.lease
+            if key:
+                try:
+                    return await self.device.renew(vehicle, key)
+                except ServiceError as exc:
+                    if not self.input_intent or exc.status_code not in (409, 503):
+                        raise
+                    await self.release_input_lease(key)
+                    return {"sesion_activa": False}
+            if self.input_intent:
+                return {"sesion_activa": False}
+            raise ServiceError(409, "El control está desactivado.")
         if action == "demo_latido":
             return self.demos.renew(vehicle, self.execution or "")
+        if action == "liberar":
+            self.input_generation += 1
         # Mientras MySQL prepara una adquisición, la lectura del socket sigue activa.
         async with self.lifecycle:
             if self.closed and action not in ("liberar", "demo_cancelar"):

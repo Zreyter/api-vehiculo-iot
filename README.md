@@ -1,4 +1,4 @@
-# Excavadora IoT 2.0.2
+# Excavadora IoT 2.0.3
 
 El panel activa los mandos mientras la placa se conecta y permite recordar el código de acceso en el navegador. El ESP8266 se conecta por `ws://` al [WebSocket compartido](docs/CONTROL-WEB.md#websocket).
 

@@ -27,6 +27,23 @@ class SocketGatewayTests(unittest.TestCase):
         return self.client.websocket_connect(self.path, subprotocols=[role, self.protocol],
                                              headers={"origin": origin or self.origin})
 
+    def test_ngrok_catalog_preflight_requires_an_allowed_origin(self):
+        headers = {
+            "origin": self.origin,
+            "access-control-request-method": "GET",
+            "access-control-request-headers": "authorization,ngrok-skip-browser-warning",
+        }
+        with self.client:
+            response = self.client.options("/vehiculos/1/comandos", headers=headers)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers["access-control-allow-origin"], self.origin)
+            self.assertIn("ngrok-skip-browser-warning", response.headers["access-control-allow-headers"])
+
+            headers["origin"] = "https://otro.example"
+            response = self.client.options("/vehiculos/1/comandos", headers=headers)
+            self.assertEqual(response.status_code, 400)
+            self.assertNotIn("access-control-allow-origin", response.headers)
+
     def test_swagger_uses_shared_favicon(self):
         with self.client:
             self.assertIn('href="/favicon.png"', self.client.get("/docs").text)

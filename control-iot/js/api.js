@@ -25,9 +25,12 @@ export class VehicleApi extends EventTarget {
   }
 
   async get(path, signal) {
-    const response = await fetch(new URL(path, config.api), {
-      headers: { Authorization: 'Bearer ' + this.token }, cache: 'no-store', signal,
-    });
+    const url = new URL(path, config.api);
+    const headers = { Authorization: 'Bearer ' + this.token };
+    if (url.hostname.endsWith('.ngrok-free.dev') || url.hostname.endsWith('.ngrok-free.app')) {
+      headers['ngrok-skip-browser-warning'] = '1';
+    }
+    const response = await fetch(url, { headers, cache: 'no-store', signal });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new Error(typeof body.detail === 'string' ? body.detail : 'Error HTTP ' + response.status);

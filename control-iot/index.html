@@ -24,12 +24,14 @@
       <label for="token">Código de acceso</label>
       <input id="token" type="password" required minlength="8" maxlength="8" pattern="[A-Za-z0-9]{8}" autocomplete="off" placeholder="8 caracteres">
       <button type="submit" class="primary">Conectar</button>
+      <label class="remember-code"><input id="remember-code" type="checkbox"> Recordar código en este dispositivo</label>
     </form>
     <section id="controls" class="console" hidden>
       <div class="toolbar card">
         <button id="arm" type="button" class="primary">Activar control</button>
         <button id="stop" type="button" class="danger">Parar</button>
         <button id="logout" type="button">Salir</button>
+        <span id="device-status" class="muted" role="status">Consultando la placa</span>
       </div>
       <div class="stick-grid">
         <section class="card stick-card">

@@ -5,6 +5,7 @@ const $ = id => document.getElementById(id);
 const { actions, resolveCommands, createController, gamepadInputs } = globalThis.VehicleDrive;
 const keysStorage = 'excavadora.keys';
 const heartbeatTimeout = 650;
+const cancelledOrder = { cancelado: true };
 
 /** Coordina las entradas manuales, la sesión de control y las demos de esta pestaña. */
 class DrivePage {
@@ -50,6 +51,7 @@ class DrivePage {
       this.revision++;
       this.execution = null;
       this.lease = false;
+      this.showDevice('Consultando la placa');
       void this.controller.halt();
       this.render();
     });
@@ -57,6 +59,7 @@ class DrivePage {
     this.configureKeys();
     this.bindInputs();
     setInterval(() => void this.heartbeat(), 150);
+    setInterval(() => void this.refreshDevice(), 1500);
     this.render();
   }
 
@@ -70,9 +73,32 @@ class DrivePage {
       $('demo').add(new Option(demo.nombre, demo.id_demo));
     }
     this.render();
+    void this.refreshDevice();
   }
 
   show(message) { $('notice').textContent = message || ''; }
+
+  showDevice(message) {
+    const status = $('device-status');
+    if (status.textContent !== message) status.textContent = message;
+  }
+
+  async refreshDevice() {
+    const socket = this.api.socket;
+    if (socket?.readyState !== WebSocket.OPEN || this.checkingDevice === socket || document.hidden) return;
+    this.checkingDevice = socket;
+    try {
+      const device = await this.api.call('estado', {}, 1000);
+      if (this.api.socket !== socket) return;
+      const label = device.listo ? 'Placa lista por WebSocket' : device.conectado
+        ? 'Placa conectada · control WiFi pendiente' : 'Placa sin conexión';
+      this.showDevice(label);
+    } catch {
+      if (this.api.socket === socket) this.showDevice('Estado de la placa no disponible');
+    } finally {
+      if (this.checkingDevice === socket) this.checkingDevice = null;
+    }
+  }
 
   render() {
     const armed = this.controller.snapshot().armed;
@@ -87,27 +113,32 @@ class DrivePage {
     });
   }
 
-  async activate() {
-    if (this.busy || !this.commands || this.controller.snapshot().armed || this.execution) return;
-    this.busy = true;
+  activate() {
+    if (this.busy || this.stopping || !this.commands || this.execution || document.hidden) return;
+    if (this.controller.arm({ commands: this.commands, transport: 'wifi' })) this.show('');
+  }
+
+  async acquireForOrder() {
     const revision = this.revision;
-    this.show('');
-    this.render();
+    const socket = this.api.socket;
+    this.acquiring = socket;
     try {
       await this.api.call('activar');
-      if (revision !== this.revision || document.hidden) {
-        await this.api.call('liberar');
-        return;
-      }
+      if (revision !== this.revision || this.api.socket !== socket) return cancelledOrder;
+      if (document.hidden) { void this.stop(); return cancelledOrder; }
       this.lease = true;
       this.intent = 0;
-      if (!this.controller.arm({ commands: this.commands, transport: 'wifi' })) await this.stop();
     } catch (error) {
-      this.show(error.message);
-      if (!this.lease) this.api.call('liberar').catch(() => {});
+      if (revision !== this.revision || this.api.socket !== socket) return cancelledOrder;
+      if (error.status === 409) {
+        void this.refreshDevice();
+        return { cancelado: true, requiere_nueva_entrada: true, mensaje: error.message };
+      }
+      // Una adquisición que excedió el plazo podría completarse en el servidor.
+      await this.api.call('liberar').catch(() => {});
+      throw error;
     } finally {
-      this.busy = false;
-      this.render();
+      this.acquiring = null;
     }
   }
 
@@ -118,7 +149,15 @@ class DrivePage {
   }
 
   async send(code, options) {
-    if (!this.lease || (code !== 0 && options.stillWanted?.() === false)) return { cancelado: true };
+    if (code !== 0) {
+      if (options.stillWanted?.() === false) return cancelledOrder;
+      if (!this.lease) {
+        const result = await this.acquireForOrder();
+        if (result) return result;
+      }
+      if (options.stillWanted?.() === false) return cancelledOrder;
+    }
+    if (!this.lease) return cancelledOrder;
     const action = actions.find(item => item.code === code);
     const data = { codigo: action.wireCode ?? code, intencion: ++this.intent };
     if (data.codigo === 9) data.pulso_ms = action.duration;
@@ -136,7 +175,7 @@ class DrivePage {
 
   async release() {
     // Se libera la sesión por el mismo canal, aunque una orden siga en vuelo.
-    const hadLease = this.lease;
+    const hadControl = this.lease || this.acquiring;
     this.lease = false;
     const cancel = this.execution || this.startingDemo;
     this.execution = null;
@@ -144,7 +183,7 @@ class DrivePage {
     for (const stick of this.sticks) stick.clear();
     try {
       const jobs = [];
-      if (hadLease || this.busy && !cancel) jobs.push(this.api.call('liberar'));
+      if (hadControl) jobs.push(this.api.call('liberar'));
       if (cancel) jobs.push(this.api.call('demo_cancelar'));
       for (const result of await Promise.all(jobs)) {
         if (result.salidas_confirmadas === false) this.show(result.mensaje);
@@ -239,7 +278,9 @@ class DrivePage {
     });
     window.addEventListener('keyup', event => this.controller.release('key:' + event.code));
     document.addEventListener('visibilitychange', () => { if (document.hidden) void this.stop(); });
-    window.addEventListener('blur', () => { if (this.lease || this.execution || this.startingDemo) void this.stop(); });
+    window.addEventListener('blur', () => {
+      if (this.controller.snapshot().armed || this.execution || this.startingDemo) void this.stop();
+    });
     window.addEventListener('pagehide', () => this.api.close());
     const poll = () => {
       const pad = Array.from(navigator.getGamepads?.() || []).find(p => p?.mapping === 'standard');

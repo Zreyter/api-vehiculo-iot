@@ -28,6 +28,31 @@ test('registro ocupado libera, mantiene la sesión y exige otra pulsación',asyn
   assert.deepEqual(sent,[10,2]);
 });
 
+test('una orden descartada por placa no disponible conserva los controles sin repetir la entrada', async () => {
+  const sent = [], notices = [];
+  const controller = createController({
+    send: async code => {
+      sent.push(code);
+      return sent.length === 1 ? { cancelado: true, requiere_nueva_entrada: true, mensaje: 'Placa no disponible' } : {};
+    },
+    notice: message => notices.push(message),
+  });
+  controller.arm({ transport: 'wifi', commands: new Map([[0, 0], [2, 2], [9, 9]]) });
+  controller.press(9, 'power');
+  await controller.idle();
+  assert.equal(controller.snapshot().armed, true);
+  assert.equal(controller.snapshot().confirmed, false);
+  assert.equal(controller.snapshot().pulse, null);
+  assert.equal(notices.at(-1), 'Placa no disponible');
+  controller.release('power');
+  await controller.idle();
+  assert.deepEqual(sent, [9]);
+  controller.press(2, 'forward');
+  await controller.idle();
+  assert.deepEqual(sent, [9, 2]);
+  await controller.halt();
+});
+
 test('prueba de liberación de sesión finalizada pausa sin nueva activación',async()=>{
   const controller=createController({send:async()=>({codigo:0,sesion_finalizada:true,salidas_confirmadas:true})});
   controller.arm({vehicle:1,transport:'wifi',commands:new Map([[0,0],[2,2]])});

@@ -8,6 +8,10 @@
 | Monitor | `/monitor.html` en Vercel | Diez movimientos y tramas del ESP8266. |
 | Swagger | `/docs` en la API | Operaciones REST y administración del catálogo. |
 
+El panel habilita el teclado y los joysticks al pulsar **Activar control**, incluso si la placa sigue desconectada. El estado de la placa se muestra por separado. La API solicita la sesión de conducción por WebSocket al recibir el primer movimiento. Si la placa aún no está lista, la orden se descarta. Cuando la placa esté lista, pulsa el control de nuevo.
+
+**Recordar código en este dispositivo** guarda el código en el navegador después de iniciar sesión y solo lo reutiliza con la misma dirección de la API. **Salir** borra el código guardado.
+
 El código de acceso dura lo que dura la sesión de la pestaña. En Swagger se ingresa en **Authorize** para las operaciones protegidas. La aplicación instalable usa las mismas entradas y el mismo acceso que Control. En Android/Chrome o Windows/Edge usa **Instalar**. En iPhone/Safari usa **Compartir → Añadir a pantalla de inicio**. El control requiere conexión a la API y a la excavadora.
 
 ## Probar y ejecutar el servidor
@@ -101,6 +105,8 @@ Mientras el túnel esté abierto, entra a `http://localhost:8000/docs`.
        respond 404
    }
    ```
+
+   Si usas un túnel temporal de Cloudflare en EC2, usa su dominio `trycloudflare.com` en `reverse_proxy` y `header_up Host`. En la placa, `API_HOST` corresponde a la IP local del equipo que ejecuta Caddy.
 
    En `firmware/ControlCarroWiFi/config_carro.h` conserva el Wi-Fi y configura `API_HOST=192.168.1.40`, `API_PORT=8080` y el `DEVICE_TOKEN` de la API. El ESP8266 usa WS asíncrono para que la red no bloquee el control serial ni el watchdog. Si Uvicorn y la placa están en la misma red privada, configura en la placa la IP y el puerto de Uvicorn, con el servidor escuchando en esa interfaz.
 

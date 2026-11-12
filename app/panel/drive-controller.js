@@ -77,10 +77,10 @@
         const code = desired, target = context, currentPulse = pulse, ticket = revision;
         sending = code;
         try {
-          const receipt = await send(code, target, {stillWanted: () => armed && desired === code});
+          const receipt = await send(code, target, {stillWanted: () => ticket === revision && armed && desired === code});
           if (ticket !== revision) continue;
-          if(receipt?.registro_ocupado){
-            pressed.clear();clearPulse();active=desired=0;confirmed=true;stopFailed=false;
+          if(receipt?.registro_ocupado || receipt?.requiere_nueva_entrada){
+            pressed.clear();clearPulse();active=desired=0;confirmed=Boolean(receipt.registro_ocupado);stopFailed=false;
             notice(receipt.mensaje);continue;
           }
           if(receipt?.sesion_finalizada){armed=false;pressed.clear();clearPulse();desired=0;}

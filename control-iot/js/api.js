@@ -1,7 +1,20 @@
 import config from '../config.js';
 
 export const vehicleId = config.vehicleId;
-const tokenKey = 'excavadora.access';
+const tokenKey = 'excavadora.access:' + new URL(config.api).origin;
+
+function readCode(storage) {
+  try { return window[storage].getItem(tokenKey) || ''; }
+  catch { return ''; }
+}
+
+function saveCode(storage, code) {
+  try {
+    if (code) window[storage].setItem(tokenKey, code);
+    else window[storage].removeItem(tokenKey);
+    return true;
+  } catch { return false; }
+}
 
 /** Envía catálogo por HTTPS y control, observación y confirmaciones por WSS. */
 export class VehicleApi extends EventTarget {
@@ -49,7 +62,7 @@ export class VehicleApi extends EventTarget {
         if (data.tipo === 'respuesta') {
           const pending = this.pending.get(data.id);
           if (data.ok) pending?.resolve(data.datos);
-          else pending?.reject(new Error(data.error));
+          else pending?.reject(Object.assign(new Error(data.error), { status: data.estado_http }));
         } else {
           this.dispatchEvent(new CustomEvent('vehicle', { detail: data }));
         }
@@ -82,11 +95,12 @@ export class VehicleApi extends EventTarget {
   close() { this.socket?.close(); }
 }
 
-/** La sesión dura lo que dura la pestaña y sirve al navegar entre las dos páginas. */
+/** Comparte la sesión entre páginas y solo recuerda el código con permiso explícito. */
 export class AccessForm {
   constructor(api, role, content, onConnect = async () => {}) {
     const form = document.querySelector('#login');
     const input = document.querySelector('#token');
+    const remember = document.querySelector('#remember-code');
     const submit = form.querySelector('button');
     const status = document.querySelector('#status');
     const notice = document.querySelector('#notice');
@@ -96,11 +110,16 @@ export class AccessForm {
       submit.disabled = true;
       notice.textContent = '';
       status.textContent = 'Conectando…';
+      const code = input.value;
       try {
-        await api.open(input.value, role);
+        await api.open(code, role);
         await onConnect();
         if (!api.socket) throw new Error('Se cerró la conexión con la API.');
-        sessionStorage.setItem(tokenKey, input.value);
+        saveCode('sessionStorage', code);
+        if (!saveCode('localStorage', remember.checked ? code : '') && remember.checked) {
+          remember.checked = false;
+          notice.textContent = 'El navegador no pudo recordar el código.';
+        }
         form.hidden = true;
         content.hidden = false;
         status.textContent = 'Conectado';
@@ -118,13 +137,18 @@ export class AccessForm {
       form.hidden = false;
     });
     form.addEventListener('submit', event => { event.preventDefault(); connect(); });
+    remember.addEventListener('change', () => { if (!remember.checked) saveCode('localStorage', ''); });
     document.querySelector('#logout').addEventListener('click', () => {
-      sessionStorage.removeItem(tokenKey);
+      saveCode('sessionStorage', '');
+      saveCode('localStorage', '');
+      remember.checked = false;
       input.value = '';
       api.close();
     });
     window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
-    input.value = sessionStorage.getItem(tokenKey) || '';
+    const saved = readCode('localStorage');
+    remember.checked = Boolean(saved);
+    input.value = readCode('sessionStorage') || saved;
     if (input.value) connect();
   }
 }

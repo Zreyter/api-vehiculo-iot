@@ -1,4 +1,4 @@
-# Excavadora IoT 2.0.1
+# Excavadora IoT 2.0.2
 
 El panel activa los mandos mientras la placa se conecta y permite recordar el código de acceso en el navegador. El ESP8266 se conecta por `ws://` al [WebSocket compartido](docs/CONTROL-WEB.md#websocket).
 
@@ -161,7 +161,7 @@ El último comando solicita la contraseña MySQL sin mostrarla en pantalla. Si `
 | `MYSQL_DATABASE` | Nombre del esquema | `vehiculo_iot` |
 | `MYSQL_SSL_CA` | Ruta al certificado CA para verificar TLS e identidad del servidor MySQL | Vacío en local; certificado oficial de AWS en RDS |
 | `CONTROL_TOKEN` | Clave de acceso a los controles de la API | Valor aleatorio generado localmente |
-| `DEVICE_TOKEN` | Token exclusivo del ESP8266 | Obligatorio con el subprotocolo `iot-device` |
+| `DEVICE_TOKEN` | Token exclusivo del ESP8266 | Obligatorio para el WebSocket del ESP8266 |
 
 `.env` contiene la configuración real y está excluido de Git. `.env.example` es la plantilla sin secretos que se incluye en el repositorio. No compartas contraseñas o tokens en capturas ni exportaciones de Postman. Reinicia la API si cambias la configuración.
 

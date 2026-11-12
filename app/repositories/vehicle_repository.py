@@ -59,8 +59,8 @@ class VehicleRepository(ProcedureRepository):
                 result[code] = command["id_comando"]
             return result
 
-    def apply_device(self, vehicle_id: int, command_id: int) -> dict:
-        return self.apply(vehicle_id, command_id, "Panel WiFi", device=True)
+    def apply_device(self, vehicle_id: int, command_id: int, *, origin="Panel WiFi") -> dict:
+        return self.apply(vehicle_id, command_id, origin, device=True)
 
     def apply(self, vehicle_id: int, command_id: int, origin: str | None, *, device=False) -> dict:
         """origin=None identifica DEMO: jamás se registra historial en ese caso."""

@@ -27,6 +27,7 @@ class DemoRun:
     key: str | None = None
     failure: str | None = None
     confirmed: bool = False
+    sent: bool = False
 
 
 class DemoService:
@@ -49,6 +50,7 @@ class DemoService:
             modo_demo="fisico" if run.physical else "registro",
             id_ejecucion=run.execution if run.physical else None,
             salidas_aplicadas_confirmadas=run.confirmed,
+            orden_enviada=run.sent,
         )
 
     async def start(self, vehicle_id: int, demo_id: int, *, physical=False) -> Event:
@@ -134,9 +136,11 @@ class DemoService:
                     demo_ms=step.duracion_ms if code != 0 else None)
                 if run.stop.is_set():
                     break
-                if result.get("cancelado") or not result.get("salidas_confirmadas"):
-                    raise ServiceError(503, "La placa no confirmó el paso; se detuvo la DEMO.")
-                run.last_step, run.confirmed = step, True
+                run.confirmed = bool(result.get("salidas_confirmadas"))
+                run.sent = bool(result.get("orden_enviada"))
+                if result.get("cancelado") or not (run.confirmed or run.sent):
+                    raise ServiceError(503, "No se pudo enviar el paso de la DEMO.")
+                run.last_step = step
                 self.manager.publish(self._event("demo_movimiento", run))
                 await self._wait(run, step.duracion_ms)
                 if run.stop.is_set():
@@ -156,10 +160,11 @@ class DemoService:
             if run.key:
                 result = await self.devices.stop(run.vehicle_id, run.key, reason="fin_demo")
                 run.confirmed = result.get("salidas_confirmadas", False)
-                if not run.confirmed:
-                    run.failure = run.failure or "No se confirmó la parada. Actúa el watchdog local; no se reanuda la secuencia."
+                run.sent = result.get("orden_enviada", False)
+                if not (run.confirmed or run.sent):
+                    run.failure = run.failure or result.get("mensaje", "Actúa el watchdog local; no se reanuda la secuencia.")
             else:
-                run.confirmed = False
+                run.confirmed = run.sent = False
             kind = "error" if run.failure else "demo_cancelada" if run.stop.is_set() else "demo_finalizada"
             run.terminal = self._event(kind, run, run.failure)
             self.manager.publish(run.terminal)

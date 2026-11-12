@@ -72,7 +72,7 @@
       if(!target.explicitStop){this.lastDriveTarget=null;return {cancelado:true};}
       // El botón Parar también funciona sin sesión previa ni comando 0 en RDS.
       const result=await call('DELETE','/control',target,undefined,{keepalive:true});
-      if(!result.salidas_confirmadas)throw new Error('La placa no confirmó la liberación de salidas.');
+      if(!result.salidas_confirmadas&&!result.orden_enviada)throw new Error(result.mensaje||'No se pudo solicitar la liberación de salidas.');
       this.lastDriveTarget=null;return result;
     }
     await acquire(target);

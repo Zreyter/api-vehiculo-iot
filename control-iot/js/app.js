@@ -14,6 +14,7 @@ class DrivePage {
     this.intent = 0;
     this.revision = 0;
     this.padInputs = new Set();
+    this.stickInputs = new Map();
     this.controller = createController({
       pulseCodes: [4],
       send: (code, _target, options) => this.send(code, options),
@@ -44,6 +45,7 @@ class DrivePage {
           ['demo_finalizada', 'demo_cancelada', 'error'].includes(detail.tipo)) {
         this.execution = null;
         if (detail.mensaje) this.show(detail.mensaje);
+        else if (detail.orden_enviada && detail.tipo === 'demo_finalizada') this.show('Demo enviada por WebSocket');
         this.render();
       }
     });
@@ -52,6 +54,7 @@ class DrivePage {
       this.execution = null;
       this.lease = false;
       this.showDevice('Consultando la placa');
+      this.resetSticks();
       void this.controller.halt();
       this.render();
     });
@@ -145,7 +148,27 @@ class DrivePage {
   press(code, source) {
     if (code === 0) { void this.stop(); return; }
     if (code === 8) { if (!document.hidden) void this.runDemo(); return; }
-    if (!document.hidden) this.controller.press(code, source);
+    if (document.hidden || !this.controller.press(code, source)) return;
+    if (source.startsWith('key:') || source.startsWith('pad:')) {
+      this.stickInputs.set(source, code);
+      this.showStickInputs();
+    }
+  }
+
+  showStickInputs() {
+    const commands = Array.from(this.stickInputs.values()).reverse();
+    for (const stick of this.sticks) stick.showInput(commands);
+  }
+
+  releaseInput(source) {
+    this.controller.release(source);
+    if (this.stickInputs.delete(source)) this.showStickInputs();
+  }
+
+  resetSticks() {
+    this.stickInputs.clear();
+    this.showStickInputs();
+    for (const stick of this.sticks) stick.clear();
   }
 
   async send(code, options) {
@@ -163,6 +186,9 @@ class DrivePage {
     if (data.codigo === 9) data.pulso_ms = action.duration;
     const result = await this.api.call('orden', data);
     if (result.sesion_finalizada) this.lease = false;
+    if (result.orden_enviada && !result.cancelado && (code === 0 || options.stillWanted?.() !== false)) {
+      this.show(code === 0 ? 'Parada enviada por WebSocket' : 'Orden enviada por WebSocket');
+    }
     return result;
   }
 
@@ -180,13 +206,14 @@ class DrivePage {
     const cancel = this.execution || this.startingDemo;
     this.execution = null;
     const idle = this.controller.halt();
-    for (const stick of this.sticks) stick.clear();
+    this.resetSticks();
     try {
       const jobs = [];
       if (hadControl) jobs.push(this.api.call('liberar'));
       if (cancel) jobs.push(this.api.call('demo_cancelar'));
       for (const result of await Promise.all(jobs)) {
-        if (result.salidas_confirmadas === false) this.show(result.mensaje);
+        if (result.orden_enviada) this.show('Parada enviada por WebSocket');
+        else if (result.salidas_confirmadas === false) this.show(result.mensaje);
       }
     } catch (error) { if (this.api.socket) this.show(error.message); }
     await idle;
@@ -276,7 +303,7 @@ class DrivePage {
       event.preventDefault();
       this.press(action.code, 'key:' + event.code);
     });
-    window.addEventListener('keyup', event => this.controller.release('key:' + event.code));
+    window.addEventListener('keyup', event => this.releaseInput('key:' + event.code));
     document.addEventListener('visibilitychange', () => { if (document.hidden) void this.stop(); });
     window.addEventListener('blur', () => {
       if (this.controller.snapshot().armed || this.execution || this.startingDemo) void this.stop();
@@ -290,7 +317,7 @@ class DrivePage {
       for (const action of actions) {
         const binding = action.code === 14 ? 'b6' : action.pad;
         const source = 'pad:' + binding;
-        if (this.padInputs.has(binding) && !next.has(binding)) this.controller.release(source);
+        if (this.padInputs.has(binding) && !next.has(binding)) this.releaseInput(source);
         if (this.api.socket && next.has(binding) && !this.padInputs.has(binding)) this.press(action.code, source);
       }
       this.padInputs = next;

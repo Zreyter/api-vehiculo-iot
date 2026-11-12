@@ -64,7 +64,7 @@
       revision++;
       const target = context;
       priority = Promise.resolve().then(() => send(0, target, {priority:true})).then(receipt => {
-        active = 0; confirmed = receipt?.cancelado !== true; stopFailed = false;
+        active = 0; confirmed = receipt?.cancelado !== true && receipt?.salidas_confirmadas !== false; stopFailed = false;
         if(receipt?.sesion_finalizada){armed=false;pressed.clear();clearPulse();desired=0;}
       }).catch(error => {
         armed = false; pressed.clear(); clearPulse(); active = null; desired = null;
@@ -80,11 +80,12 @@
           const receipt = await send(code, target, {stillWanted: () => ticket === revision && armed && desired === code});
           if (ticket !== revision) continue;
           if(receipt?.registro_ocupado || receipt?.requiere_nueva_entrada){
-            pressed.clear();clearPulse();active=desired=0;confirmed=Boolean(receipt.registro_ocupado);stopFailed=false;
+            pressed.clear();clearPulse();active=desired=0;
+            confirmed=Boolean(receipt.registro_ocupado && receipt.salidas_confirmadas !== false);stopFailed=false;
             notice(receipt.mensaje);continue;
           }
           if(receipt?.sesion_finalizada){armed=false;pressed.clear();clearPulse();desired=0;}
-          active = code; confirmed = receipt?.cancelado !== true; stopFailed = false;
+          active = code; confirmed = receipt?.cancelado !== true && receipt?.salidas_confirmadas !== false; stopFailed = false;
           if (currentPulse && pulse === currentPulse && code === pulse.code) {
             pulseTimer = timer(() => {
               if (pulse !== currentPulse) return;

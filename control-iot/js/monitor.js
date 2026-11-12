@@ -33,7 +33,8 @@ class Monitor {
         fecha_hora: event.marca_temporal,
         codigo: event.codigo,
         comando: event.comando,
-        origen: event.tipo === 'demo_movimiento' ? 'Demo ' + event.id_demo : event.estado?.origen || 'API',
+        origen: event.tipo === 'demo_movimiento' ? 'Demo ' + event.id_demo + (event.orden_enviada ? ' (enviada)' : '')
+          : event.orden_enviada ? 'Panel WS (enviada)' : event.estado?.origen || 'API',
       }, ...this.rows].slice(0, 10);
       this.render();
     }

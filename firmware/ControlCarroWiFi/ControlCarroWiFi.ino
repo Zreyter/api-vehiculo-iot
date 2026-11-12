@@ -14,9 +14,9 @@ static_assert(WEBSOCKETS_NETWORK_TYPE == NETWORK_ESP8266_ASYNC,
 const uint8_t DATOS_1=13, RELOJ_1=14, LATCH_1=12;
 const uint8_t DATOS_2=4, RELOJ_2=5, LATCH_2=16;
 WebSocketsClient socketAPI;
-String session, controlID, permission, preparedControl;
-uint32_t preparedSeq=0, appliedSeq=0, permissionUntil=0, lastStatus=0;
-bool socketUp=false, stateDirty=true, networkStarted=false;
+String controlID;
+uint32_t appliedSeq=0, lastStatus=0;
+bool socketUp=false, networkStarted=false;
 char serialLine[48];
 uint8_t serialLength=0;
 bool serialOverflow=false;
@@ -31,116 +31,82 @@ void outputs(uint8_t code) {
   registro(DATOS_2,RELOJ_2,LATCH_2,0);
   if(code>=1 && code<=8) registro(DATOS_1,RELOJ_1,LATCH_1,1U<<(code-1));
   else if(code>=9 && code<=13) registro(DATOS_2,RELOJ_2,LATCH_2,1U<<(code-9));
-  stateDirty=true;
 }
 ControlCore core(outputs);
 
 void tickCore(uint32_t now) { core.tick(now); }
 
-void addState(JsonDocument& doc, const char* type) {
-  doc["tipo"]=type; doc["sesion"]=session;
+void reportState() {
+  if(!socketUp) return;
+  JsonDocument doc;
+  doc["tipo"]="estado";
   doc["modo"]=core.remoteMode?"wifi":"serial";
   doc["codigo"]=core.code;
-  doc["encendido_estimado"]=nullptr;
-  doc["pulsos_encendido_explicitos"]=true;
   doc["motivo"]=core.reason;
-  doc["demo_temporizada"]=true;
-}
-void sendDocument(JsonDocument& doc) {
-  if(!socketUp || session.length()==0) return;
+  if(controlID.length()) doc["control"]=controlID;
   String text; serializeJson(doc,text);
   if(socketAPI.sendTXT(text))sentFrames++;else failedFrames++;
+  lastStatus=millis();
 }
-void reportState(const char* type="estado") {
-  JsonDocument doc; addState(doc,type); sendDocument(doc);
-  stateDirty=false; lastStatus=millis();
+void setMode(bool wifi) {
+  core.mode(wifi);
+  controlID="";
+  if(wifi && socketUp) core.remoteFault=true; // La próxima sesión envía parar antes de mover.
+  reportState();
 }
-void acknowledge(uint32_t seq, bool ok, uint32_t duration=0, const char* error="") {
-  JsonDocument doc; addState(doc,"ack"); doc["seq"]=seq;
-  doc["ok"]=ok; doc["duracion_ms"]=duration;
-  if(!ok)doc["motivo"]=error;
-  sendDocument(doc);
-}
-void clearPermission() { permission=""; preparedControl=""; preparedSeq=0; }
 void receiveOrder(uint8_t* data, size_t length) {
   receivedFrames++;
-  if(length>768) return;
+  if(!socketUp || length>768) return;
   JsonDocument doc;
   if(deserializeJson(doc,data,length,DeserializationOption::NestingLimit(3)))return;
   const String type=doc["tipo"]|"";
-  const String receivedSession=doc["sesion"]|"";
   const uint32_t now=millis();
   tickCore(now);
-  if(type=="saludo") {
-    if(receivedSession.length()!=16)return;
-    // A repeated initial greeting acknowledges readiness; it never resets control.
-    if(session==receivedSession){reportState("listo");return;}
-    session=receivedSession; appliedSeq=0; controlID=""; clearPermission();
-    if(core.remoteMode)core.resetRemote();
-    reportState("listo"); Serial.printf("[%lu] API lista; salidas liberadas.\n",millis()); return;
-  }
-  if(session.length()==0 || receivedSession!=session)return;
   if(type=="latido") {
     const String id=doc["control"]|"";
-    const uint32_t ttl=doc["ttl_ms"]|0;
+    const uint32_t ttl=doc["ttl_ms"]|0U;
     if(id==controlID && id.length()==32 && ttl>=100 && ttl<=800)core.renew(now,ttl);
     return;
   }
-  if(!doc["seq"].is<uint32_t>())return;
+  if((type!="orden" && type!="parar") || !doc["seq"].is<uint32_t>())return;
   const uint32_t seq=doc["seq"].as<uint32_t>();
-  if(seq==0 || seq<=appliedSeq){acknowledge(seq,false,0,"secuencia_antigua");return;}
+  if(seq<=appliedSeq)return;
+  appliedSeq=seq;
+  if(!core.remoteMode)return;
   if(type=="parar") {
-    appliedSeq=seq; clearPermission();controlID="";
-    core.resetRemote(); acknowledge(seq,true);return;
+    controlID="";
+    core.resetRemote();
+    return;
   }
-  if(type=="preparar") {
-    const String id=doc["control"]|"";
-    if(!core.remoteMode || core.remoteFault || id.length()!=32) {
-      JsonDocument response;response["tipo"]="preparado";response["sesion"]=session;response["seq"]=seq;
-      response["permiso"]="";sendDocument(response);return;
-    }
-    preparedSeq=seq;preparedControl=id;
-    permission=String(ESP.random(),HEX)+String(ESP.random(),HEX);
-    permissionUntil=now+500;
-    JsonDocument response;response["tipo"]="preparado";response["sesion"]=session;
-    response["seq"]=seq;response["permiso"]=permission;sendDocument(response);return;
+  const String id=doc["control"]|"";
+  if(id.length()!=32 || !doc["codigo"].is<uint8_t>() || !doc["ttl_ms"].is<uint32_t>()) return;
+  if(controlID.length() && controlID!=id) return;
+  const uint8_t code=doc["codigo"].as<uint8_t>();
+  const uint32_t ttl=doc["ttl_ms"].as<uint32_t>();
+  if(code==0 || ttl<100 || ttl>800) return;
+  uint32_t duration=core.duration(code);
+  if(code==9) {
+    if(!doc["pulso_ms"].is<uint32_t>()) return;
+    duration=doc["pulso_ms"].as<uint32_t>();
+    if(duration!=200 && duration!=2000) return;
+  } else if(!doc["pulso_ms"].isNull()) return;
+  bool applied;
+  if(!doc["demo_ms"].isNull()) {
+    if(!doc["demo_ms"].is<uint32_t>()) return;
+    applied=core.applyDemo(code,now,ttl,doc["demo_ms"].as<uint32_t>());
+  } else {
+    applied=core.apply(code,true,now,ttl,duration);
   }
-  if(type=="orden") {
-    const String id=doc["control"]|"", suppliedPermission=doc["permiso"]|"";
-    if(seq!=preparedSeq || id!=preparedControl || permission.length()==0 || suppliedPermission!=permission ||
-       ControlCore::expired(now,permissionUntil)) {
-      clearPermission();acknowledge(seq,false,0,"permiso_vencido");return;
-    }
-    clearPermission();
-    if(!doc["codigo"].is<uint8_t>() || !doc["ttl_ms"].is<uint32_t>()) {
-      acknowledge(seq,false,0,"orden_invalida");return;
-    }
-    const uint8_t code=doc["codigo"].as<uint8_t>();
-    const uint32_t ttl=doc["ttl_ms"].as<uint32_t>();
-    uint32_t duration=core.duration(code);
-    if(code==9) {
-      if(!doc["pulso_ms"].is<uint32_t>()) {acknowledge(seq,false,0,"elige_pulso_encendido_o_apagado");return;}
-      duration=doc["pulso_ms"].as<uint32_t>();
-      if(duration!=200 && duration!=2000) {acknowledge(seq,false,0,"pulso_invalido");return;}
-    } else if(!doc["pulso_ms"].isNull()) {acknowledge(seq,false,0,"pulso_solo_codigo_9");return;}
-    bool applied=false;
-    if(!doc["demo_ms"].isNull()) {
-      if(!doc["demo_ms"].is<uint32_t>()){acknowledge(seq,false,0,"duracion_demo_invalida");return;}
-      duration=doc["demo_ms"].as<uint32_t>();
-      applied=core.applyDemo(code,now,ttl,duration);
-    } else applied=core.apply(code,true,now,ttl,duration);
-    if(!applied){acknowledge(seq,false,0,"modo_pulso_o_estado_no_disponible");return;}
-    appliedSeq=seq;controlID=id;
-    acknowledge(seq,true,duration);
-  }
+  if(applied) controlID=id;
 }
 void socketEvent(WStype_t type, uint8_t* payload, size_t length) {
   if(type==WStype_CONNECTED) {
-    socketUp=true; session=""; controlID=""; clearPermission();
-    Serial.printf("[%lu] Canal API conectado; esperando saludo. RSSI=%d heap=%u\n",millis(),WiFi.RSSI(),ESP.getFreeHeap());
+    socketUp=true; controlID=""; appliedSeq=0; lastStatus=millis();
+    if(core.remoteMode)core.resetRemote();
+    Serial.printf("[%lu] WebSocket directo conectado. RSSI=%d heap=%u\n",millis(),WiFi.RSSI(),ESP.getFreeHeap());
   } else if(type==WStype_TEXT) receiveOrder(payload,length);
   else if(type==WStype_DISCONNECTED) {
-    socketUp=false;session="";controlID="";clearPermission();core.lost();
+    socketUp=false;controlID="";core.lost();
     Serial.printf("[%lu] API desconectada. WiFi=%d RSSI=%d heap=%u motivo=%.*s\n",millis(),WiFi.status(),WiFi.RSSI(),ESP.getFreeHeap(),(int)(length>64?64:length),payload?(char*)payload:"");
   }
 }
@@ -149,11 +115,11 @@ void serialCommand() {
   if(serialOverflow){Serial.println(F("Entrada serial demasiado larga; descartada."));return;}
   String line=serialLine;line.trim();line.toUpperCase();
   if(line.length()==0)return;
-  if(line=="SERIAL") {core.mode(false);controlID="";clearPermission();Serial.println(F("Modo SERIAL."));return;}
-  if(line=="WIFI") {core.mode(true);controlID="";clearPermission();Serial.println(F("Modo WIFI; salidas liberadas."));reportState("listo");return;}
+  if(line=="SERIAL") {setMode(false);Serial.println(F("Modo SERIAL."));return;}
+  if(line=="WIFI") {setMode(true);Serial.println(F("Modo WIFI; salidas liberadas."));return;}
   if(line=="ENCENDER" || line=="APAGAR") {
     const uint32_t duration=line=="APAGAR"?2000:200;
-    if(core.remoteMode){core.mode(false);controlID="";clearPermission();}
+    if(core.remoteMode){setMode(false);}
     if(core.apply(9,false,millis(),800,duration)) Serial.printf("Pulso enviado al mando: %u ms. Sin confirmar encendido.\n",duration);
     else Serial.println(F("Pulso en curso; envia 0 para liberar."));
     return;
@@ -161,14 +127,14 @@ void serialCommand() {
   if(line=="ESTADO") {
     Serial.printf("Modo: %s | salida: %u | WiFi: %s | API: %s\n",core.remoteMode?"WIFI":"SERIAL",core.code,
                   WiFi.status()==WL_CONNECTED?"conectado":"sin red",socketUp?"conectada":"sin canal");
-    Serial.printf("RSSI=%d dBm | heap=%u | tiempo_ms=%lu | sesion_lista=%s\n",WiFi.RSSI(),ESP.getFreeHeap(),millis(),session.length()?"si":"no");
+    Serial.printf("RSSI=%d dBm | heap=%u | tiempo_ms=%lu\n",WiFi.RSSI(),ESP.getFreeHeap(),millis());
     Serial.printf("TX=%lu | TX_fallidos=%lu | RX=%lu | edad_estado_ms=%lu\n",sentFrames,failedFrames,receivedFrames,millis()-lastStatus);return;
   }
   for(size_t i=0;i<line.length();++i)if(!isDigit(line[i])) {Serial.println(F("Usa 0-13, SERIAL, WIFI, ESTADO o ENCENDER o APAGAR."));return;}
   if(line.length()>2 || line.toInt()>13){Serial.println(F("Comando invalido: usa 0 a 13."));return;}
   const uint8_t code=line.toInt();
   // Una orden local toma el control aunque interrumpa un pulso remoto.
-  if(code!=0 && core.remoteMode){core.mode(false);controlID="";clearPermission();}
+  if(code!=0 && core.remoteMode){setMode(false);}
   if(core.apply(code,false,millis()))Serial.printf("Comando serial: %u\n",code);
   else Serial.println(F("Pulso en curso; envia 0 para liberar."));
 }
@@ -196,7 +162,7 @@ void loop() {
   readSerial();tickCore(millis());
   // The async transport can close TCP without issuing WStype_DISCONNECTED.
   if(socketUp && !socketAPI.isConnected()) {
-    socketUp=false;session="";controlID="";clearPermission();core.lost();
+    socketUp=false;controlID="";core.lost();
     Serial.printf("[%lu] TCP cerrado; salidas liberadas. RSSI=%d heap=%u\n",millis(),WiFi.RSSI(),ESP.getFreeHeap());
   }
   if(WiFi.status()!=WL_CONNECTED)core.lost();
@@ -204,12 +170,12 @@ void loop() {
     // Iniciar una sola vez. ESPAsyncTCP se encarga de reconectar sin esperar TCP.
     const String path="/ws/vehiculos/"+String(VEHICLE_ID);
     // En redes distintas, un relay local establece TLS hacia la API.
-    socketAPI.begin(API_HOST, API_PORT, path.c_str(), "iot-device");
+    socketAPI.begin(API_HOST, API_PORT, path.c_str(), "iot-device-direct");
     socketAPI.setAuthorization((String("Bearer ")+DEVICE_TOKEN).c_str());
     networkStarted=true;
   }
   // Solo despacha reintentos asíncronos; nunca espera una conexión TCP.
   socketAPI.loop();
-  if(socketUp && session.length()>0 && (stateDirty || millis()-lastStatus>=400))reportState();
+  if(socketUp && millis()-lastStatus>=400)reportState();
   yield();
 }

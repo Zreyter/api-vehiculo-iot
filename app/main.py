@@ -45,7 +45,7 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
         await manager.close()
 
     application = FastAPI(
-        title="API Vehículo IoT - Actividad 2.5", version="2.0.1",
+        title="API Vehículo IoT - Actividad 2.5", version="2.0.2",
         description=(
             "Catálogo de vehículos, comandos y demos sobre 21 procedimientos de MySQL. "
             "Control web, monitor y ESP8266 comparten /ws/vehiculos/{id_vehiculo}. "

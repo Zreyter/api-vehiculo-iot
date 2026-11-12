@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 CONTROL = "iot-control"
 MONITOR = "iot-monitor"
 DEVICE = "iot-device"
+DIRECT_DEVICE = "iot-device-direct"
 TRACE_FIELDS = ("tipo", "seq", "codigo", "ok", "modo", "motivo", "duracion_ms",
                 "pulso_ms", "demo_ms", "ttl_ms", "demo_temporizada",
                 "pulsos_encendido_explicitos", "encendido_estimado")
@@ -169,11 +170,11 @@ class SocketGateway:
         scheme, _, token = self.socket.headers.get("authorization", "").partition(" ")
         if scheme.lower() != "bearer":
             token = ""
-        roles = [p for p in protocols if p in (CONTROL, MONITOR, DEVICE, "iot")]
+        roles = [p for p in protocols if p in (CONTROL, MONITOR, DEVICE, DIRECT_DEVICE, "iot")]
         if len(roles) > 1:
             raise HTTPException(400)
         protocol = roles[0] if roles else None
-        if protocol == DEVICE or self.legacy == DEVICE:
+        if protocol in (DEVICE, DIRECT_DEVICE) or self.legacy == DEVICE:
             settings = self.app.settings
             expected = settings.device_token.get_secret_value()
             if self.legacy == DEVICE and not expected:
@@ -190,7 +191,7 @@ class SocketGateway:
 
     async def run_device(self, protocol):
         transport = DeviceTransport(self.socket, self.vehicle_id, protocol)
-        device = await self.app.device_service.connect(self.vehicle_id, transport)
+        device = await self.app.device_service.connect(self.vehicle_id, transport, direct=protocol == DIRECT_DEVICE)
         try:
             while True:
                 raw = await self.socket.receive_text()
@@ -200,7 +201,7 @@ class SocketGateway:
                 if not isinstance(frame, dict):
                     raise ValueError()
                 await self.app.device_service.message(self.vehicle_id, device, frame)
-                if frame.get("sesion") == device.session:
+                if (device.direct and frame.get("tipo") == "estado") or frame.get("sesion") == device.session:
                     transport.trace("esp8266 → api", frame)
         finally:
             await self.app.device_service.disconnect(self.vehicle_id, device)

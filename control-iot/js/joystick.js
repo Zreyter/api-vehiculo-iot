@@ -12,6 +12,8 @@ export class Joystick {
     this.codes = codes;
     this.input = input;
     this.knob = element.querySelector('.knob');
+    const offsets = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+    this.offsets = new Map(Object.entries(codes).map(([name, code]) => [code, offsets[name]]));
     element.addEventListener('pointerdown', event => {
       if (this.pointer != null || event.button !== 0 || !input.enabled()) return;
       this.pointer = event.pointerId;
@@ -31,9 +33,7 @@ export class Joystick {
     const radius = box.width / 2;
     const x = (event.clientX - box.left - radius) / radius;
     const y = (event.clientY - box.top - radius) / radius;
-    const cap = Math.max(1, Math.hypot(x, y));
-    this.knob.style.transform = 'translate(' + (x / cap * radius * .66) + 'px,' +
-      (y / cap * radius * .66) + 'px)';
+    this.position(x, y, radius);
     const code = direction(x, y, this.codes);
     if (code !== this.code) {
       this.input.release(this.element.id);
@@ -42,10 +42,26 @@ export class Joystick {
     }
   }
 
+  position(x, y, radius) {
+    const scale = radius * .66 / Math.max(1, Math.hypot(x, y));
+    this.knob.style.setProperty('--stick-x', `${x * scale}px`);
+    this.knob.style.setProperty('--stick-y', `${y * scale}px`);
+  }
+
+  showInput(commands) {
+    this.inputCode = commands.find(code => this.offsets.has(code));
+    if (this.pointer == null) this.showDirection();
+  }
+
+  showDirection() {
+    const [x, y] = this.offsets.get(this.inputCode) ?? [0, 0];
+    this.position(x, y, this.element.getBoundingClientRect().width / 2);
+  }
+
   clear() {
     this.pointer = null;
     this.code = 0;
-    this.knob.style.transform = '';
+    this.showDirection();
     this.input.release(this.element.id);
   }
 }

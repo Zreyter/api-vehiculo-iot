@@ -111,7 +111,7 @@ Mientras el túnel esté abierto, entra a `http://localhost:8000/docs`.
    En `firmware/ControlCarroWiFi/config_carro.h` conserva el Wi-Fi y configura `API_HOST=192.168.1.40`, `API_PORT=8080` y el `DEVICE_TOKEN` de la API. El ESP8266 usa WS asíncrono para que la red no bloquee el control serial ni el watchdog. Si Uvicorn y la placa están en la misma red privada, configura en la placa la IP y el puerto de Uvicorn, con el servidor escuchando en esa interfaz.
 
    Compila con `arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 --library firmware/libraries/WebSockets firmware/ControlCarroWiFi` y sube la revisión a la placa. Consulta la [documentación de `reverse_proxy`](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy).
-5. Abre Monitor y Control. Activa el control y prueba un movimiento breve. En Monitor deben aparecer `orden`, `ack` y el movimiento registrado. Al soltar debe aparecer la parada; una confirmación de la placa describe sus salidas eléctricas.
+5. Abre Monitor y Control. Activa el control y prueba un movimiento breve. En Monitor deben aparecer la trama `orden` y el registro de envío. Al soltar debe aparecer la trama `parar`.
 
 ## Cómo se organiza el código
 
@@ -127,7 +127,7 @@ Mientras el túnel esté abierto, entra a `http://localhost:8000/docs`.
 | `app/services`, `app/repositories` | Arbitraje del control, watchdog, demos, catálogo e historial MySQL mediante los procedimientos existentes. |
 | `firmware/ControlCarroWiFi` | Cliente Wi-Fi/serial, confirmaciones, liberación de salidas y protocolo físico. |
 
-El catálogo de comandos y las demos viven en RDS. La compilación reutiliza las asignaciones del panel anterior. Los joysticks y el mando seleccionan un código activo por vez. WASD mueve el vehículo, las flechas controlan la pala y Espacio detiene el control. El giro derecho de la pala usa un pulso de 200 ms por toque. Los botones Y, A y X corresponden a luz, velocidad y mute en el mapeo estándar Xbox. Start enciende, el gatillo izquierdo apaga, B ejecuta la demo seleccionada y Back detiene.
+El catálogo de comandos y las demos viven en RDS. La compilación reutiliza las asignaciones del panel anterior. Los joysticks y el mando seleccionan un código activo por vez. WASD mueve el vehículo, las flechas controlan la pala y Espacio detiene el control. Los joysticks muestran la dirección del teclado o del mando y se centran al soltar los controles. El giro derecho de la pala usa un pulso de 200 ms por toque. Los botones Y, A y X corresponden a luz, velocidad y mute en el mapeo estándar Xbox. Start enciende, el gatillo izquierdo apaga, B ejecuta la demo seleccionada y Back detiene.
 
 ## WebSocket
 
@@ -135,7 +135,8 @@ Todos los participantes usan `/ws/vehiculos/{id}`. La placa abre `ws://<API_HOST
 
 | Subprotocolo | Autenticación | Mensajes |
 | --- | --- | --- |
-| `iot-device` | `Authorization: Bearer DEVICE_TOKEN` | Saludo, preparación, orden, latido y ACK del ESP8266. |
+| `iot-device-direct` | `Authorization: Bearer DEVICE_TOKEN` | La API envía `orden`, `parar` y `latido`. La placa puede publicar `estado` para diagnóstico. |
+| `iot-device` | `Authorization: Bearer DEVICE_TOKEN` | Compatibilidad con firmware anterior que usa saludo, preparación y ACK. |
 | `iot-control` | Subprotocolo adicional `token.<base64url>` y origen permitido | `activar`, `orden`, `latido`, `liberar`, `estado`, `demo_iniciar`, `demo_latido` y `demo_cancelar`. |
 | `iot-monitor` | Igual que el control | Estado, historial inicial, eventos y tramas del ESP8266 con campos de diagnóstico. |
 
@@ -146,6 +147,9 @@ Ejemplo de una orden cuando se activó el control:
 ```
 
 La API responde con `tipo: "respuesta"`, el mismo `id`, `ok` y `datos` o `error`.
+En el protocolo directo, la placa puede recibir órdenes desde que abre el WebSocket autenticado. Cada envío devuelve `orden_enviada: true` y `salidas_confirmadas: false`. Las órdenes y demos avanzan sin esperar respuestas de la placa. El monitor identifica los envíos y la placa libera sus salidas si se pierde el enlace o vence el plazo del último latido.
+
+Para actualizar a 2.0.2, instala primero la API en EC2 y después carga el firmware nuevo en el ESP8266.
 `codigo: 0` libera salidas. El botón de apagado usa `codigo: 9` con `pulso_ms: 2000`.
 `demo_iniciar` recibe el `id_demo` de RDS. El monitor recibe los pasos de demo mientras la conexión está abierta. Al reconectar, se carga el historial persistido por MySQL. La opción de latidos permite ver también los reportes periódicos del dispositivo.
 

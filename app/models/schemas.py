@@ -60,6 +60,7 @@ class Event(BaseModel):
     mensaje: str | None = None
     ejecucion_fisica_confirmada: bool = False
     salidas_aplicadas_confirmadas: bool = False
+    orden_enviada: bool = False
     modo_demo: Literal["registro", "fisico"] | None = None
     id_ejecucion: str | None = None
 

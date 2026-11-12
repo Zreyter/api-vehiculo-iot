@@ -127,3 +127,54 @@ class SocketGatewayTests(unittest.TestCase):
             self.assertEqual((ack["tipo"], ack["codigo"], ack["ok"]), ("ack", 4, True))
             movement = take(monitor, lambda f: f["tipo"] == "movimiento_individual")
             self.assertEqual((movement["codigo"], movement["comando"]), (4, "PALA_DERECHA"))
+
+    def test_direct_device_receives_orders_and_stop_without_sending_any_messages(self):
+        db = FakeMySQL()
+        db.data["movimientos"][501]["duracion_ms"] = 100
+        settings = Settings(_env_file=None, control_token="TestAb12", device_token="device-test",
+                            browser_origins=[self.origin], mysql_password="local-fake")
+        self.client = TestClient(create_app(settings))
+
+        def take(socket, matches):
+            for _ in range(20):
+                frame = socket.receive_json()
+                if matches(frame):
+                    return frame
+            self.fail("No llegó la trama esperada.")
+
+        with (patch("app.core.database.mysql.connector.connect", db.connect), self.client,
+              self.open_browser("iot-monitor") as monitor,
+              self.client.websocket_connect(self.path, subprotocols=["iot-device-direct"],
+                  headers={"authorization": "Bearer device-test"}) as device,
+              self.open_browser("iot-control") as control):
+            self.assertEqual(device.accepted_subprotocol, "iot-device-direct")
+            control.send_json({"id": 1, "accion": "activar"})
+            self.assertTrue(take(control, lambda f: f.get("id") == 1)["ok"])
+            self.assertEqual(device.receive_json(), {"tipo": "parar", "seq": 1})
+
+            control.send_json({"id": 2, "accion": "orden", "datos": {"codigo": 2, "intencion": 1}})
+            result = take(control, lambda f: f.get("id") == 2)["datos"]
+            self.assertTrue(result["orden_enviada"])
+            self.assertFalse(result["salidas_confirmadas"])
+            order = device.receive_json()
+            self.assertEqual((order["tipo"], order["seq"], order["codigo"]), ("orden", 2, 2))
+            self.assertNotIn("permiso", order)
+            event = take(monitor, lambda f: f["tipo"] == "movimiento_individual")
+            self.assertTrue(event["orden_enviada"])
+            self.assertFalse(event["salidas_aplicadas_confirmadas"])
+
+            control.send_json({"id": 3, "accion": "liberar"})
+            result = take(control, lambda f: f.get("id") == 3)["datos"]
+            self.assertTrue(result["orden_enviada"])
+            self.assertFalse(result["salidas_confirmadas"])
+            self.assertEqual(device.receive_json(), {"tipo": "parar", "seq": 3})
+
+            control.send_json({"id": 4, "accion": "demo_iniciar", "datos": {"id_demo": 42}})
+            demo = take(control, lambda f: f.get("id") == 4)
+            self.assertTrue(demo["ok"], demo)
+            self.assertEqual(device.receive_json(), {"tipo": "parar", "seq": 4})
+            step = device.receive_json()
+            self.assertEqual((step["tipo"], step["codigo"], step["demo_ms"]), ("orden", 2, 100))
+            terminal = take(monitor, lambda f: f["tipo"] == "demo_finalizada")
+            self.assertTrue(terminal["orden_enviada"])
+            self.assertFalse(terminal["salidas_aplicadas_confirmadas"])

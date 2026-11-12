@@ -12,7 +12,7 @@ def configured_token():
     values = {}
     if path.is_file():
         for line in path.read_text(encoding='utf-8-sig').splitlines():
-            match = re.match(r'^\s*(DEVICE_TOKEN|CONTROL_TOKEN)\s*=\s*(.*?)\s*$', line)
+            match = re.match(r'^\s*(DEVICE_TOKEN)\s*=\s*(.*?)\s*$', line)
             if match:
                 value = match[2]
                 if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
@@ -20,7 +20,7 @@ def configured_token():
                 else:
                     value = value.split(' #', 1)[0].strip()
                 values[match[1]] = value
-    return values.get('DEVICE_TOKEN') or values.get('CONTROL_TOKEN') or ''
+    return values.get('DEVICE_TOKEN', '')
 
 
 def main():
@@ -34,7 +34,7 @@ def main():
     vehicle = int(input('ID del vehículo [1]: ').strip() or '1')
     token = configured_token()
     if not token:
-        token = getpass.getpass('CONTROL_TOKEN o DEVICE_TOKEN de EC2 (no se muestra): ').strip()
+        token = getpass.getpass('DEVICE_TOKEN de la API (no se muestra): ').strip()
     if not ssid or not re.fullmatch(r'[A-Za-z0-9.-]+', host) or not 1 <= port <= 65535 or vehicle <= 0 or not token or any(ord(c)<32 for c in token):
         raise SystemExit('Hay datos inválidos. No se escribió la configuración.')
     literal = lambda value: json.dumps(value, ensure_ascii=True)

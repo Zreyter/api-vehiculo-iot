@@ -174,6 +174,7 @@ class CatalogApiTests(unittest.TestCase):
         self.assertEqual(self.server.data, before)
 
     def test_all_catalog_mutations_for_active_demo_vehicle_are_rejected(self):
+        self.server.data["movimientos"][501]["duracion_ms"] = 60_000
         self.send("POST", "/vehiculos/1/demos", {"id_demo": 42}, 202)
         base = "/admin/vehiculos/1"
         step = {"id_comando": 102, "orden": 2, "duracion_ms": 0, "pausa_ms": 0}

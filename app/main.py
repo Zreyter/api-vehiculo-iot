@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.api.routes import router
 from app.api.catalog_routes import router as catalog_router
@@ -18,6 +21,7 @@ from app.services.vehicle_service import VehicleService
 from app.services.catalog_service import CatalogService
 from app.services.device_service import DeviceService
 from app.websocket.manager import WebSocketManager
+from app.websocket.gateway import router as socket_router
 
 
 def create_app(settings: Settings | None = None, repository=None, catalog_repository=None) -> FastAPI:
@@ -41,10 +45,33 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
         await manager.close()
 
     application = FastAPI(
-        title="API Vehículo IoT — Actividad 2.5", version="1.6.5",
-        description="Versión 1.6: aplicación de escritorio Windows, panel de conducción con teclado y mando, firmware ESP8266 WiFi/serial y los 21 SP de MySQL. Administración de vehículos, comandos y DEMO; movimiento individual, historial y transmisión WebSocket. Canal autenticado ESP8266 WiFi/serial con confirmación de salidas; no confirma movimiento mediante sensores.",
-        lifespan=lifespan,
+        title="API Vehículo IoT - Actividad 2.5", version="2.0.0",
+        description=(
+            "Catálogo de vehículos, comandos y demos sobre 21 procedimientos de MySQL. "
+            "Control web, monitor y ESP8266 comparten /ws/vehiculos/{id_vehiculo}. "
+            "La confirmación de la placa corresponde a las salidas eléctricas."
+        ),
+        lifespan=lifespan, docs_url=None,
     )
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.browser_origins,
+        allow_methods=["GET"],
+        allow_headers=["Authorization"],
+    )
+
+    @application.get("/docs", include_in_schema=False)
+    async def swagger(request: Request):
+        prefix = request.scope.get("root_path", "").rstrip("/")
+        return get_swagger_ui_html(
+            openapi_url=prefix + "/openapi.json", title="Excavadora IoT | Swagger",
+            swagger_favicon_url=prefix + "/favicon.png",
+        )
+
+    @application.get("/favicon.png", include_in_schema=False)
+    async def favicon():
+        icon = Path(__file__).resolve().parents[1] / "control-iot/assets/favicon/excavadora-192.png"
+        return FileResponse(icon, media_type="image/png")
     application.state.settings = settings
     application.state.manager = manager
     application.state.vehicle_service = vehicles
@@ -60,6 +87,7 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
     application.include_router(catalog_router)
     application.include_router(panel_router)
     application.include_router(device_router)
+    application.include_router(socket_router)
     return application
 
 

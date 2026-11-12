@@ -1,4 +1,10 @@
-# API de vehículo IoT — versión 1.6.5
+# Excavadora IoT 2.0
+
+La versión `2.0.0` separa el control web instalable, el monitor y Swagger.
+El frontend se construye desde [control-iot](control-iot) para Vercel. FastAPI, el ESP8266
+y los navegadores usan la misma ruta WebSocket por vehículo. En EC2 Debian, la API arranca
+con systemd y consulta MySQL en RDS. La [guía de despliegue y código](docs/CONTROL-WEB.md)
+incluye el instalador, pruebas locales con AWS apagado y la configuración de HTTPS/WSS para Vercel.
 
 ## Versión 1.6.5 — demos físicas y enlace estable
 
@@ -36,7 +42,7 @@ Corrige cancelaciones de sesión causadas por permisos anticipados tardíos y co
 
 API desarrollada con **FastAPI, MySQL y WebSocket** para administrar un vehículo IoT, registrar movimientos individuales y transmitir secuencias DEMO. El proyecto corresponde a la actividad **2.5: APIs para IoT en entorno Dev** e integra **21 procedimientos almacenados**; conserva las **22 operaciones HTTP** anteriores y añade **cinco operaciones HTTP** para el control del ESP8266, además de los canales WebSocket de eventos y dispositivo.
 
-**Versión 1.6:** añade una aplicación portátil para Windows con la misma interfaz, teclado/mando, configuración del servidor y controles persistentes. Conserva el firmware ESP8266 WiFi/serial y su canal autenticado. La versión actual de OpenAPI es `1.6.5`. Consulta el [registro de validación](VALIDACION.md).
+**Versión 1.6:** añadió una aplicación portátil para Windows con la misma interfaz, teclado/mando, configuración del servidor y controles persistentes. Consulta el [registro de validación](VALIDACION.md).
 
 **Antecedente v1.4: funcionamiento en AWS demostrado y confirmado por el estudiante al cierre de esta entrega, el 21 de octubre de 2026.** La API se ejecuta en Amazon EC2 con Windows Server y utiliza MySQL en Amazon RDS. El repositorio incluye el panel web integrado, las colecciones de Postman y las guías de despliegue y operación. Esta confirmación corresponde a la aplicación y su conexión a la base de datos. Posteriormente, el usuario confirmó en este chat el funcionamiento del ESP8266 con el carro real.
 
@@ -138,7 +144,7 @@ Solo para una instalación nueva, cuando todavía no exista `.env`:
 ```bash
 cp .env.example .env
 chmod 600 .env
-python -c "import secrets; from dotenv import set_key; set_key('.env', 'CONTROL_TOKEN', secrets.token_urlsafe(32))"
+python scripts/generar_token.py
 python scripts/configurar_password.py
 ```
 
@@ -153,7 +159,7 @@ El último comando solicita la contraseña MySQL sin mostrarla en pantalla. Si `
 | `MYSQL_DATABASE` | Nombre del esquema | `vehiculo_iot` |
 | `MYSQL_SSL_CA` | Ruta al certificado CA para verificar TLS e identidad del servidor MySQL | Vacío en local; certificado oficial de AWS en RDS |
 | `CONTROL_TOKEN` | Clave de acceso a los controles de la API | Valor aleatorio generado localmente |
-| `DEVICE_TOKEN` | Token opcional exclusivo del ESP8266 | Vacío utiliza `CONTROL_TOKEN` |
+| `DEVICE_TOKEN` | Token exclusivo del ESP8266 | Obligatorio con el subprotocolo `iot-device` |
 
 `.env` contiene la configuración real y está excluido de Git. `.env.example` es la plantilla sin secretos que se incluye en el repositorio. No compartas contraseñas o tokens en capturas ni exportaciones de Postman. Reinicia la API si cambias la configuración.
 

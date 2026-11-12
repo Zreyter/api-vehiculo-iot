@@ -1,9 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Path, Query, Request
 
 from app.core.errors import ServiceError
-from app.core.security import check_token, require_control_token
+from app.core.security import require_control_token
 from app.models.schemas import DemoRequest, DemoHeartbeatRequest, Event, HistoryItem, MovementRequest, state_event
 
 router = APIRouter()
@@ -65,27 +65,3 @@ async def cancel_demo(id_vehiculo: VehicleId, request: Request):
              tags=["DEMO"], responses=errors, summary="Renovar ejecución física DEMO")
 async def renew_demo(id_vehiculo: VehicleId, body: DemoHeartbeatRequest, request: Request):
     return request.app.state.demo_service.renew(id_vehiculo, body.id_ejecucion)
-
-
-@router.websocket("/ws/vehiculos/{id_vehiculo}")
-async def vehicle_socket(socket: WebSocket, id_vehiculo: int):
-    client = None
-    try:
-        authorization = socket.headers.get("authorization", "")
-        scheme, _, token = authorization.partition(" ")
-        check_token(socket.app.state.settings, token if scheme.lower() == "bearer" else "")
-        if id_vehiculo <= 0:
-            raise HTTPException(422, "Identificador inválido.")
-        client = await socket.app.state.vehicle_service.connect(id_vehiculo, socket)
-        while True:
-            # El canal es de observación; los controles se autentican por HTTP.
-            message = await socket.receive()
-            if message["type"] == "websocket.disconnect":
-                break
-    except (HTTPException, ServiceError):
-        await socket.close(code=1008)
-    except WebSocketDisconnect:
-        pass
-    finally:
-        if client is not None:
-            await socket.app.state.manager.disconnect(id_vehiculo, client)

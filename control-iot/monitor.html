@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#162c25">
+  <title>Monitor | Excavadora IoT</title>
+  <link rel="icon" href="./assets/favicon/excavadora-192.png">
+  <link rel="stylesheet" href="./css/styles.css">
+  <script type="module" src="./js/monitor.js"></script>
+</head>
+<body>
+  <header class="header">
+    <a class="brand" href="./"><img src="./assets/favicon/excavadora-192.png" alt="">Excavadora IoT</a>
+    <nav aria-label="Páginas"><a href="./">Control</a><a href="./monitor.html" aria-current="page">Monitor</a><a data-swagger>Swagger</a></nav>
+  </header>
+  <main class="shell">
+    <div class="title"><h1>Monitoreo WebSocket</h1><p class="status" id="status" aria-live="polite">Sin conexión</p></div>
+    <form class="card login" id="login">
+      <label for="token">Código de acceso</label>
+      <input id="token" type="password" required minlength="8" maxlength="8" pattern="[A-Za-z0-9]{8}" autocomplete="off" placeholder="8 caracteres">
+      <button type="submit" class="primary">Conectar</button>
+    </form>
+    <div id="monitor" hidden>
+      <section class="card monitor-card">
+        <div class="section-title"><h2>Últimos 10 movimientos</h2><button id="logout" type="button">Salir</button></div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Hora</th><th>Código</th><th>Movimiento</th><th>Origen</th></tr></thead>
+          <tbody id="movements"></tbody>
+        </table></div>
+      </section>
+      <section class="card monitor-card">
+        <div class="section-title">
+          <h2>Tramas en vivo</h2>
+          <label><input id="heartbeat" type="checkbox"> Incluir latidos y estado periódico</label>
+        </div>
+        <ol id="frames" class="frames"></ol>
+        <p id="empty-frames" class="muted">Esperando actividad de la API o el ESP8266.</p>
+      </section>
+    </div>
+    <p id="notice" class="notice" aria-live="polite"></p>
+  </main>
+</body>
+</html>

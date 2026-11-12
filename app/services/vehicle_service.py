@@ -1,7 +1,7 @@
 import asyncio
 
 from app.core.errors import ServiceError
-from app.models.schemas import MovementRequest, state_event
+from app.models.schemas import HistoryItem, MovementRequest, state_event
 
 
 class VehicleService:
@@ -30,11 +30,16 @@ class VehicleService:
     async def history(self, vehicle_id: int, limit: int):
         return await asyncio.to_thread(self.repository.history, vehicle_id, limit)
 
-    async def connect(self, vehicle_id: int, socket, *, subprotocol: str | None = None):
+    async def connect(self, vehicle_id: int, socket, *, subprotocol: str | None = None,
+                      role: str | None = None):
         # Snapshot + suscripción son atómicos respecto a los movimientos de esta API.
         async with self.coordinator.lock(vehicle_id):
             state = await asyncio.to_thread(self.repository.snapshot, vehicle_id)
+            history = None
+            if role == "iot-monitor":
+                history = [HistoryItem.model_validate(item).model_dump(mode="json")
+                           for item in await self.history(vehicle_id, 10)]
             return await self.manager.connect(
                 vehicle_id, socket, state_event("estado", vehicle_id, state),
-                subprotocol=subprotocol,
+                subprotocol=subprotocol, role=role, history=history,
             )

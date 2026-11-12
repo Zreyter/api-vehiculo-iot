@@ -141,7 +141,9 @@ class StabilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_retry_does_not_interrupt_serial_takeover(self):
         self.relay.drop['ack'] = 1
         release = asyncio.create_task(self.service.command(1, self.key, 0))
-        await asyncio.sleep(.02)
+        async with asyncio.timeout(.5):
+            while self.relay.drop['ack']:
+                await asyncio.sleep(.001)
         self.socket.mode, self.socket.code = 'serial', 10
         await self.service.message(1, self.device, {'tipo': 'estado', 'sesion': self.device.session,
             'modo': 'serial', 'codigo': 10})

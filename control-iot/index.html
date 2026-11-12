@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#162c25">
+  <title>Control | Excavadora IoT</title>
+  <link rel="icon" href="./assets/favicon/excavadora-192.png">
+  <link rel="apple-touch-icon" href="./assets/favicon/excavadora-192.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./css/styles.css">
+  <script src="./js/drive-controller.js" defer></script>
+  <script type="module" src="./js/app.js"></script>
+</head>
+<body>
+  <header class="header">
+    <a class="brand" href="./"><img src="./assets/favicon/excavadora-192.png" alt="">Excavadora IoT</a>
+    <nav aria-label="Páginas"><a href="./" aria-current="page">Control</a><a href="./monitor.html">Monitor</a><a data-swagger>Swagger</a></nav>
+    <button id="install" type="button" class="subtle" hidden>Instalar</button>
+  </header>
+  <main class="shell">
+    <div class="title"><h1>Control de excavadora</h1><p class="status" id="status" aria-live="polite">Sin conexión</p></div>
+    <form class="card login" id="login">
+      <label for="token">Código de acceso</label>
+      <input id="token" type="password" required minlength="8" maxlength="8" pattern="[A-Za-z0-9]{8}" autocomplete="off" placeholder="8 caracteres">
+      <button type="submit" class="primary">Conectar</button>
+    </form>
+    <section id="controls" class="console" hidden>
+      <div class="toolbar card">
+        <button id="arm" type="button" class="primary">Activar control</button>
+        <button id="stop" type="button" class="danger">Parar</button>
+        <button id="logout" type="button">Salir</button>
+      </div>
+      <div class="stick-grid">
+        <section class="card stick-card">
+          <div class="stick-label"><h2>Vehículo</h2><span>W A S D</span></div>
+          <div class="stick" id="vehicle-stick" role="group" aria-label="Joystick del vehículo">
+            <span class="north">↑</span><span class="west">←</span><span class="east">→</span><span class="south">↓</span><span class="knob"></span>
+          </div>
+          <div class="stick-legend"><span>Avanzar</span><span>Girar</span><span>Retroceder</span></div>
+        </section>
+        <section class="card stick-card">
+          <div class="stick-label"><h2>Pala</h2><span>↑ ← ↓ →</span></div>
+          <div class="stick" id="bucket-stick" role="group" aria-label="Joystick de la pala">
+            <span class="north">↑</span><span class="west">←</span><span class="east">→</span><span class="south">↓</span><span class="knob"></span>
+          </div>
+          <div class="stick-legend"><span>Agarrar</span><span>Girar</span><span>Soltar</span></div>
+        </section>
+      </div>
+      <section class="card actions">
+        <h2>Funciones</h2>
+        <div class="button-grid">
+          <button type="button" data-code="7">Luz</button><button type="button" data-code="6">Velocidad</button>
+          <button type="button" data-code="5">Mute</button><button type="button" data-code="9">Encender</button>
+          <button type="button" data-code="14">Apagar</button>
+        </div>
+      </section>
+      <section class="card demo">
+        <div><h2>Demo</h2><label for="demo">Secuencia guardada</label></div>
+        <select id="demo"><option value="">Selecciona una demo</option></select>
+        <button type="button" class="primary" id="run-demo">Ejecutar demo</button>
+      </section>
+      <details class="card"><summary>Teclado y mando</summary>
+        <p id="gamepad" class="muted">Pulsa un botón del mando para detectarlo.</p>
+        <div id="bindings" class="binding-grid"></div>
+        <button id="reset-keys" type="button">Restaurar teclas</button>
+      </details>
+    </section>
+    <p id="notice" class="notice" aria-live="polite"></p>
+  </main>
+</body>
+</html>

@@ -202,12 +202,13 @@ void loop() {
   if(WiFi.status()!=WL_CONNECTED)core.lost();
   if(!networkStarted && WiFi.status()==WL_CONNECTED && String(API_HOST)!="IP_O_HOST_DE_EC2") {
     // Iniciar una sola vez. ESPAsyncTCP se encarga de reconectar sin esperar TCP.
-    const String path="/dispositivo/ws/vehiculos/"+String(VEHICLE_ID);
-    socketAPI.begin(API_HOST,API_PORT,path.c_str(),"");
+    const String path="/ws/vehiculos/"+String(VEHICLE_ID);
+    // En redes distintas, un relay local establece TLS hacia la API.
+    socketAPI.begin(API_HOST, API_PORT, path.c_str(), "iot-device");
     socketAPI.setAuthorization((String("Bearer ")+DEVICE_TOKEN).c_str());
     networkStarted=true;
   }
-  // Solo despacha reintentos asíncronos; nunca espera una conexión TCP.
+  // Solo despacha reintentos asÃ­ncronos; nunca espera una conexiÃ³n TCP.
   socketAPI.loop();
   if(socketUp && session.length()>0 && (stateDirty || millis()-lastStatus>=400))reportState();
   yield();

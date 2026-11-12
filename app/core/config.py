@@ -19,3 +19,4 @@ class Settings(BaseSettings):
     mysql_ssl_ca: str = ""
     control_token: SecretStr = SecretStr("")
     device_token: SecretStr = SecretStr("")
+    browser_origins: list[str] = Field(default_factory=list)

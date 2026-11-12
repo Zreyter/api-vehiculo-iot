@@ -39,7 +39,7 @@
     });
     return inputs;
   }
-  function createController({send, changed = () => {}, fault = () => {}, notice = () => {}, timer = setTimeout, cancel = clearTimeout}) {
+  function createController({send, changed = () => {}, fault = () => {}, notice = () => {}, timer = setTimeout, cancel = clearTimeout, pulseCodes = []}) {
     let armed = false, context = null, active = null, desired = null, pumping = null, confirmed = false;
     let pulse = null, pulseTimer = null, power = 'unknown', stopFailed = false;
     let sending = null, revision = 0, priority = null;
@@ -131,8 +131,9 @@
         if (!armed || pulse || !action || !context.commands.has(code) || pressed.has(source)) return false;
 
         notice('');
-        pressed.set(source, action);
-        if (!action.held) pulse = {code, duration: action.duration ?? 200};
+        const held = action.held && !pulseCodes.includes(code);
+        pressed.set(source, {code, held});
+        if (!held) pulse = {code, duration: action.duration ?? 200};
         desired = code; pump(); notify(); return true;
       },
       release(source) {

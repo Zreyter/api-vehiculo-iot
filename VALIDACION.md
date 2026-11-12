@@ -1,5 +1,11 @@
 # Validación — Actividad 2.5, integración de los 21 SP
 
+## Versión 2.0.0
+
+- En EC2 Debian se comprobó el servicio `vehiculo-iot` en estado `active` y `enabled`, y Swagger respondió HTTP 200. Tras iniciar RDS, la API devolvió HTTP 200 en la consulta del historial.
+- Con MySQL y ESP8266 simulados se comprobó el WebSocket compartido, el historial inicial de diez movimientos, las confirmaciones de la placa y la liberación de salidas. El frontend se construyó con la configuración de Vercel.
+- Quedan pendientes la publicación por HTTPS/WSS, la instalación de la PWA en un navegador y la prueba del firmware 2.0 en la placa real. Voz y gestos incluyen contratos de integración para sus proveedores.
+
 ## Publicación 1.6.5 — 28 de octubre de 2026
 
 Se reúnen las demos físicas, las pulsaciones explícitas de encendido/apagado, la corrección de renovaciones y la biblioteca WebSockets local corregida. API, lanzador y paquete de escritorio se identifican como 1.6.5. Se reconstruye el ejecutable y se preparan paquetes públicos de EC2 y firmware sin configuración privada. La comprobación física confirmada por el usuario se conserva en el apartado siguiente; publicar esta versión no implica un despliegue nuevo en EC2 ni una nueva prueba mecánica.

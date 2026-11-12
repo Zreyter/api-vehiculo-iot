@@ -86,3 +86,160 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
   .stick-legend { font-size: .73rem; gap: 4px 7px; }
   .login input[type="password"] { width: 100%; }
 }
+
+/* Control ocupa el alto disponible del navegador y de la app instalada. */
+.control-page {
+  --space: clamp(6px, 1.4dvh, 14px);
+  --gutter: clamp(8px, 2.2vw, 20px);
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: linear-gradient(var(--green) 0 56px, #f3f1e9 56px);
+}
+
+.control-page .header {
+  gap: 8px;
+  padding: 6px max(var(--gutter), calc((100% - 1040px)/2));
+}
+.control-page .brand { margin-inline-end: auto; }
+.control-page .brand img { width: 32px; height: 32px; }
+.control-page .header button { min-height: 36px; padding-block: 4px; }
+.control-page .shell {
+  width: min(1040px, calc(100% - 2 * var(--gutter)));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--space);
+  min-height: 0;
+  margin: 0 auto;
+  padding-block: var(--space);
+}
+.control-page .title { gap: 4px 8px; }
+.control-page h1 {
+  font-size: clamp(1.2rem, min(4.4vw, 5dvh), 2.45rem);
+  line-height: 1.15;
+  margin: 0;
+}
+.control-page .status { margin: 0; padding: 3px 8px; font-size: .86rem; }
+.control-page .login { align-self: start; }
+.control-page .shell:has(.login:not([hidden])) {
+  grid-template-rows: auto auto auto;
+  align-content: start;
+}
+.control-page .console {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: var(--space);
+}
+.control-page .console .card {
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(5px, 1.3dvh, 12px);
+}
+.control-page .toolbar, .control-page .demo { gap: 5px 8px; }
+.control-page .toolbar button { min-width: 0; }
+.control-page .stick-grid { gap: var(--space); min-height: 0; }
+.control-page .stick-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 3px;
+}
+.control-page .stick-label { flex-wrap: nowrap; gap: 4px; }
+.control-page .stick-label h2 { font-size: clamp(.86rem, 2.8vw, 1.1rem); }
+.control-page .stick-label span { white-space: nowrap; font-size: clamp(.65rem, 2vw, .88rem); }
+.control-page .stick-area {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+.control-page .stick {
+  width: min(100%, 230px, max(0px, calc(100dvh - 215px)));
+  margin: 0;
+}
+@supports (width: 1cqh) {
+  .control-page .stick { width: min(100cqw, 100cqh, 230px); }
+}
+.control-page .button-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  margin: 0;
+}
+.control-page .button-grid button { min-width: 0; padding-inline: 4px; }
+.control-page .demo { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.control-page .demo select { min-width: 0; text-overflow: ellipsis; }
+.control-page .shell > .notice {
+  margin: 0;
+  min-height: 1lh;
+  max-height: 3lh;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  font-size: clamp(.76rem, 2.5vw, .93rem);
+}
+.control-page dialog {
+  color: inherit;
+  width: min(440px, calc(100% - 2 * var(--gutter)));
+  max-height: calc(100dvh - 2 * var(--gutter));
+  overflow: auto;
+}
+.control-page dialog::backdrop { background: #13251bc4; }
+.control-page .dialog-content { display: grid; gap: 8px; }
+.control-page .dialog-content p { margin: 0; }
+.control-page .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.control-page .binding-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  margin: 0;
+}
+.control-page .binding-grid select { min-width: 0; }
+.control-page .assist-options { display: grid; gap: 6px; }
+
+@media (max-width: 580px) {
+  .control-page .toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, .8fr) minmax(0, .75fr) minmax(0, 1.45fr);
+    gap: 4px;
+  }
+  .control-page #device-status { grid-column: 1 / -1; font-size: .75rem; }
+  .control-page .console button, .control-page .demo select {
+    min-height: 40px;
+    padding: 3px;
+    font-size: clamp(.69rem, 2.75vw, .9rem);
+  }
+  .control-page .button-grid { grid-template-columns: .82fr 1.15fr .83fr 1.14fr 1.06fr; gap: 4px; }
+  .control-page .stick-legend { font-size: .67rem; }
+}
+
+@media (orientation: landscape) and (min-width: 480px) and (max-height: 520px) {
+  .control-page { --space: 5px; }
+  .control-page .console {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "toolbar toolbar" "sticks actions" "sticks demo";
+  }
+  .control-page .toolbar { grid-area: toolbar; display: flex; }
+  .control-page .stick-grid { grid-area: sticks; }
+  .control-page .actions { grid-area: actions; display: grid; align-content: center; }
+  .control-page .demo { grid-area: demo; }
+  .control-page .button-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .control-page .console button, .control-page .demo select {
+    min-height: 32px;
+    padding-block: 2px;
+    font-size: .76rem;
+  }
+  .control-page .stick-legend { display: none; }
+  .control-page .stick-card { grid-template-rows: auto minmax(0, 1fr); }
+}
+
+@media (max-height: 320px) {
+  .control-page .header { padding-block: 3px; }
+  .control-page .header button { min-height: 30px; }
+  .control-page .console .card { padding: 4px; }
+  .control-page .console button, .control-page .demo select { min-height: 29px; }
+}

@@ -237,35 +237,39 @@ class DrivePage {
       try { return JSON.parse(localStorage.getItem(keysStorage)) || {}; } catch { return {}; }
     };
     this.keys = { ...defaults, ...read() };
-    const bindings = $('bindings');
+    const action = $('binding-action');
+    const key = $('binding-key');
+    const notice = $('binding-notice');
+    action.replaceChildren(...actions.map(item => new Option(item.name, item.code)));
     const refresh = () => {
-      bindings.replaceChildren();
-      for (const action of actions) {
-        const label = document.createElement('label');
-        label.textContent = action.code === 8 ? 'Ejecutar demo seleccionada' : action.name;
-        const input = document.createElement('input');
-        input.value = this.keys[action.code];
-        input.readOnly = true;
-        input.addEventListener('keydown', event => {
-          if (event.code === 'Tab' || event.code === 'Escape') return;
-          event.preventDefault();
-          if (Object.entries(this.keys).some(([code, key]) => Number(code) !== action.code && key === event.code)) {
-            this.show('Esa tecla ya está asignada.'); return;
-          }
-          this.keys[action.code] = input.value = event.code;
-          localStorage.setItem(keysStorage, JSON.stringify(this.keys));
-          this.show('');
-        });
-        label.append(input);
-        bindings.append(label);
-      }
+      key.value = this.keys[action.value];
+      notice.textContent = '';
     };
+    action.onchange = refresh;
+    key.addEventListener('keydown', event => {
+      if (event.code === 'Tab' || event.code === 'Escape') return;
+      event.preventDefault();
+      if (Object.entries(this.keys).some(([code, value]) => code !== action.value && value === event.code)) {
+        notice.textContent = 'Esa tecla ya está asignada.';
+        return;
+      }
+      this.keys[action.value] = key.value = event.code;
+      localStorage.setItem(keysStorage, JSON.stringify(this.keys));
+      notice.textContent = '';
+    });
     $('reset-keys').onclick = () => {
       localStorage.removeItem(keysStorage);
       this.keys = { ...defaults };
       refresh();
     };
     refresh();
+    $('open-bindings').onclick = () => this.openDialog('key-settings');
+    $('open-assist').onclick = () => this.openDialog('assist-settings');
+  }
+
+  openDialog(id) {
+    if (this.controller.snapshot().armed || this.execution || this.startingDemo) void this.stop();
+    $(id).showModal();
   }
 
   bindInputs() {

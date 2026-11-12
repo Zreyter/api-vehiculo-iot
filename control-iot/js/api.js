@@ -107,7 +107,8 @@ export class AccessForm {
     const submit = form.querySelector('button');
     const status = document.querySelector('#status');
     const notice = document.querySelector('#notice');
-    document.querySelector('[data-swagger]').href = new URL('/docs', config.api);
+    const swagger = document.querySelector('[data-swagger]');
+    if (swagger) swagger.href = new URL('/docs', config.api);
     const connect = async () => {
       if (submit.disabled || !form.checkValidity()) return;
       submit.disabled = true;

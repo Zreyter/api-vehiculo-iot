@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#162c25">
   <title>Control | Excavadora IoT</title>
   <link rel="icon" href="./assets/favicon/excavadora-192.png">
@@ -12,10 +12,10 @@
   <script src="./js/drive-controller.js" defer></script>
   <script type="module" src="./js/app.js"></script>
 </head>
-<body>
+<body class="control-page">
   <header class="header">
-    <a class="brand" href="./"><img src="./assets/favicon/excavadora-192.png" alt="">Excavadora IoT</a>
-    <nav aria-label="Páginas"><a href="./" aria-current="page">Control</a><a href="./monitor.html">Monitor</a><a data-swagger>Swagger</a></nav>
+    <a class="brand" href="./" aria-label="Excavadora IoT"><img src="./assets/favicon/excavadora-192.png" alt=""><span>Excavadora IoT</span></a>
+    <button id="open-assist" type="button" class="subtle" aria-haspopup="dialog">IA</button>
     <button id="install" type="button" class="subtle" hidden>Instalar</button>
   </header>
   <main class="shell">
@@ -31,26 +31,30 @@
         <button id="arm" type="button" class="primary">Activar control</button>
         <button id="stop" type="button" class="danger">Parar</button>
         <button id="logout" type="button">Salir</button>
+        <button id="open-bindings" type="button" aria-haspopup="dialog">Teclado y mando</button>
         <span id="device-status" class="muted" role="status">Consultando la placa</span>
       </div>
       <div class="stick-grid">
         <section class="card stick-card">
           <div class="stick-label"><h2>Vehículo</h2><span>W A S D</span></div>
-          <div class="stick" id="vehicle-stick" role="group" aria-label="Joystick del vehículo">
-            <span class="north">↑</span><span class="west">←</span><span class="east">→</span><span class="south">↓</span><span class="knob"></span>
+          <div class="stick-area">
+            <div class="stick" id="vehicle-stick" role="group" aria-label="Joystick del vehículo">
+              <span class="north">↑</span><span class="west">←</span><span class="east">→</span><span class="south">↓</span><span class="knob"></span>
+            </div>
           </div>
           <div class="stick-legend"><span>Avanzar</span><span>Girar</span><span>Retroceder</span></div>
         </section>
         <section class="card stick-card">
           <div class="stick-label"><h2>Pala</h2><span>↑ ← ↓ →</span></div>
-          <div class="stick" id="bucket-stick" role="group" aria-label="Joystick de la pala">
-            <span class="north">↑</span><span class="west">←</span><span class="east">→</span><span class="south">↓</span><span class="knob"></span>
+          <div class="stick-area">
+            <div class="stick" id="bucket-stick" role="group" aria-label="Joystick de la pala">
+              <span class="north">↑</span><span class="west">←</span><span class="east">→</span><span class="south">↓</span><span class="knob"></span>
+            </div>
           </div>
           <div class="stick-legend"><span>Agarrar</span><span>Girar</span><span>Soltar</span></div>
         </section>
       </div>
-      <section class="card actions">
-        <h2>Funciones</h2>
+      <section class="card actions" aria-label="Funciones">
         <div class="button-grid">
           <button type="button" data-code="7">Luz</button><button type="button" data-code="6">Velocidad</button>
           <button type="button" data-code="5">Mute</button><button type="button" data-code="9">Encender</button>
@@ -58,17 +62,41 @@
         </div>
       </section>
       <section class="card demo">
-        <div><h2>Demo</h2><label for="demo">Secuencia guardada</label></div>
-        <select id="demo"><option value="">Selecciona una demo</option></select>
+        <select id="demo" aria-label="Demo guardada"><option value="">Selecciona una demo</option></select>
         <button type="button" class="primary" id="run-demo">Ejecutar demo</button>
       </section>
-      <details class="card"><summary>Teclado y mando</summary>
-        <p id="gamepad" class="muted">Pulsa un botón del mando para detectarlo.</p>
-        <div id="bindings" class="binding-grid"></div>
-        <button id="reset-keys" type="button">Restaurar teclas</button>
-      </details>
     </section>
     <p id="notice" class="notice" aria-live="polite"></p>
   </main>
+  <dialog class="card" id="key-settings" aria-labelledby="key-title">
+    <div class="dialog-content">
+      <h2 id="key-title">Teclado y mando</h2>
+      <p id="gamepad" class="muted">Pulsa un botón del mando para detectarlo.</p>
+      <div class="binding-grid">
+        <label for="binding-action">Acción</label>
+        <select id="binding-action"></select>
+        <label for="binding-key">Tecla</label>
+        <input id="binding-key" readonly>
+      </div>
+      <p id="binding-notice" class="notice" aria-live="polite"></p>
+      <form method="dialog" class="dialog-actions">
+        <button id="reset-keys" type="button">Restaurar teclas</button>
+        <button class="primary">Cerrar</button>
+      </form>
+    </div>
+  </dialog>
+  <dialog class="card" id="assist-settings" aria-labelledby="assist-title">
+    <div class="dialog-content">
+      <h2 id="assist-title">Control con IA</h2>
+      <div class="assist-options">
+        <button type="button" id="voice-control" disabled>Comandos por voz</button>
+        <button type="button" id="gesture-control" disabled>Gestos con cámara</button>
+      </div>
+      <p class="muted">En preparación</p>
+      <form method="dialog" class="dialog-actions">
+        <button class="primary">Cerrar</button>
+      </form>
+    </div>
+  </dialog>
 </body>
 </html>

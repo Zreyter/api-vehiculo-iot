@@ -1,4 +1,6 @@
-# Excavadora IoT 2.0
+# Excavadora IoT 2.0.1
+
+El panel activa los mandos mientras la placa se conecta y permite recordar el código de acceso en el navegador. El ESP8266 se conecta por `ws://` al [WebSocket compartido](docs/CONTROL-WEB.md#websocket).
 
 La versión `2.0.0` separa el control web instalable, el monitor y Swagger.
 El frontend se construye desde [control-iot](control-iot) para Vercel. FastAPI, el ESP8266

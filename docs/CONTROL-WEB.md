@@ -131,7 +131,7 @@ El catálogo de comandos y las demos viven en RDS. La compilación reutiliza las
 
 ## WebSocket
 
-Todos los participantes usan `/ws/vehiculos/{id}`. Un WebSocket por cliente es necesario para que la placa y los navegadores tengan su propia conexión al mismo canal del vehículo.
+Todos los participantes usan `/ws/vehiculos/{id}`. La placa abre `ws://<API_HOST>:<API_PORT>/ws/vehiculos/<VEHICLE_ID>` al arrancar en modo Wi-Fi. En `config_carro.h`, escribe solo el host en `API_HOST` y el número de puerto en `API_PORT`. Cuando el panel se sirve desde Vercel, el navegador abre su conexión al mismo canal por `wss://`.
 
 | Subprotocolo | Autenticación | Mensajes |
 | --- | --- | --- |

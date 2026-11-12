@@ -4,15 +4,17 @@
 
 | Página | Dirección | Función |
 | --- | --- | --- |
-| Control | `/` en Vercel | Joysticks, teclado personalizable, mando estándar y demos. |
-| Monitor | `/monitor.html` en Vercel | Diez movimientos y tramas del ESP8266. |
-| Swagger | `/docs` en la API | Operaciones REST y administración del catálogo. |
+| Control | [vehiculo-pi.vercel.app](https://vehiculo-pi.vercel.app/) | Conducción, teclado, mando, demos y app instalable. |
+| Monitor | [vehiculo-pi.vercel.app/monitor.html](https://vehiculo-pi.vercel.app/monitor.html) | Movimientos y tramas WebSocket en vivo. |
+| Swagger | [API /docs](https://cape-landside-tidy.ngrok-free.dev/docs) | Operaciones REST y administración del catálogo. |
 
-Al pulsar **Activar control**, el panel envía las órdenes por WebSocket y el Monitor las muestra en **Tramas en vivo**. Cuando la placa está desconectada, la orden aparece como **sin envío**. La API reenvía las órdenes nuevas al ESP8266 si está conectado por WebSocket directo. La tabla muestra las órdenes sin envío durante la sesión, mientras que el historial de MySQL conserva los envíos a la placa.
+La app instalada abre Control. La pantalla adapta los joysticks y coloca **Parar**, las funciones y **Demo** en el área visible en vertical y horizontal. **Teclado y mando** abre un cuadro para seleccionar una acción, cambiar su tecla o restaurar las asignaciones. **IA** abre las opciones de voz y gestos con cámara. Ambas están en preparación.
 
-**Recordar código en este dispositivo** guarda el código en el navegador después de iniciar sesión y solo lo reutiliza con la misma dirección de la API. **Salir** borra el código guardado.
+Al pulsar **Activar control**, el panel envía las órdenes por WebSocket aunque el ESP8266 esté desconectado. En **Tramas en vivo**, `Panel → API · orden_recibida` indica que la API recibió la entrada y `api → esp8266 · orden` aparece cuando también la envía a la placa. Las órdenes **Sin envío** se muestran en la sesión del Monitor y se descartan. Al reconectar se envían las entradas nuevas. MySQL conserva el historial de los envíos a la placa.
 
-El código de acceso dura lo que dura la sesión de la pestaña. En Swagger se ingresa en **Authorize** para las operaciones protegidas. La aplicación instalable usa las mismas entradas y el mismo acceso que Control. En Android/Chrome o Windows/Edge usa **Instalar**. En iPhone/Safari usa **Compartir → Añadir a pantalla de inicio**. El control requiere conexión a la API y a la excavadora.
+Control y Monitor usan el mismo código de acceso. **Recordar código en este dispositivo** lo guarda en el navegador para la dirección actual de la API. **Salir** borra el código guardado. En Swagger usa **Authorize** para las operaciones protegidas.
+
+Para instalar Control, usa **Instalar** en un navegador compatible. En iPhone, abre Control en Safari y elige **Compartir → Añadir a pantalla de inicio**.
 
 ## Probar y ejecutar el servidor
 
@@ -113,6 +115,16 @@ Mientras el túnel esté abierto, entra a `http://localhost:8000/docs`.
    Compila con `arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 --library firmware/libraries/WebSockets firmware/ControlCarroWiFi` y sube la revisión a la placa. Consulta la [documentación de `reverse_proxy`](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy).
 5. Abre Monitor y Control. Activa el control y prueba un movimiento breve. En Monitor deben aparecer la trama `orden` y el registro de envío. Al soltar debe aparecer la trama `parar`.
 
+### Despliegue con ngrok
+
+En el proyecto `vehiculo` de Vercel, configura `IOT_API_URL` para **Production** con el origen HTTPS de la API.
+
+```text
+https://cape-landside-tidy.ngrok-free.dev
+```
+
+Después de guardar la variable, vuelve a desplegar `main`. En EC2, `ngrok.service` publica FastAPI en `127.0.0.1:8000`. Comprueba el servicio con `sudo systemctl status ngrok` y el túnel con `curl -fsS https://cape-landside-tidy.ngrok-free.dev/openapi.json`. El authtoken de ngrok se configura en Debian. En `BROWSER_ORIGINS` de `/etc/vehiculo-iot/api.env`, incluye `https://vehiculo-pi.vercel.app` para autorizar Control y Monitor.
+
 ## Cómo se organiza el código
 
 | Ruta | Responsabilidad |
@@ -162,4 +174,4 @@ Los accesos antiguos `/panel/`, `/panel/ws/vehiculos/{id}` y `/dispositivo/ws/ve
 - **Voz.** Capturar una frase en español y enviarla al backend que alojará el modelo. El modelo devuelve `{"pasos":[{"codigo":1,"duracion_ms":400,"pausa_ms":200}]}`. Pasar el resultado por `validateVoicePlan` también en el punto de ejecución. Para «saluda» el proveedor puede proponer alternar la pala de lado a lado. Para «baila» puede combinar movimientos cortos y pausas. Mostrar el plan y, tras confirmarlo, ejecutarlo a través del servicio de demos o del controlador vigente. Cancelar al parar, perder la sesión u ocultar la página. El modelo se limita a proponer datos y la clave del proveedor vive en el backend.
 - **Gestos.** Inyectar a `CameraGestureInput` un detector `detect(video)` que retorne `{abierta, x, y}` con coordenadas normalizadas según el video que ve el usuario. Centrar la palma abierta y moverla a un borde. Arriba avanza, abajo retrocede y los lados giran. Volver al centro, cerrar la mano o perder el seguimiento libera la orden. Conecta `press` y `release` al controlador existente. Activa la cámara por acción explícita del usuario y llama a `stop()` al salir del modo o detener el vehículo.
 
-Quedan por conectar el modelo de lenguaje, la captura de voz, el detector de manos y sus controles visibles.
+El menú **IA** ya muestra **Comandos por voz** y **Gestos con cámara**. Queda por conectar el modelo de lenguaje, la captura de voz y el detector de manos a esos controles.

@@ -1,12 +1,10 @@
 # Excavadora IoT 2.0.4
 
-El panel activa los mandos mientras la placa se conecta y permite recordar el código de acceso en el navegador. El ESP8266 se conecta por `ws://` al [WebSocket compartido](docs/CONTROL-WEB.md#websocket).
+[Control](https://vehiculo-pi.vercel.app/) se puede instalar como app web. Los joysticks, **Parar**, las funciones y **Demo** se ajustan al alto disponible en vertical y horizontal. **Teclado y mando** abre los ajustes de teclas, e **IA** muestra las opciones de voz y gestos con cámara en preparación.
 
-La versión `2.0.0` separa el control web instalable, el monitor y Swagger.
-El frontend se construye desde [control-iot](control-iot) para Vercel. FastAPI, el ESP8266
-y los navegadores usan la misma ruta WebSocket por vehículo. En EC2 Debian, la API arranca
-con systemd y consulta MySQL en RDS. La [guía de despliegue y código](docs/CONTROL-WEB.md)
-incluye el instalador, pruebas locales con AWS apagado y la configuración de HTTPS/WSS para Vercel.
+[Monitor WebSocket](https://vehiculo-pi.vercel.app/monitor.html) y [Swagger](https://cape-landside-tidy.ngrok-free.dev/docs) tienen sus propias páginas. Control puede enviar órdenes a la API aunque el ESP8266 esté desconectado. Monitor las muestra en vivo y marca como **Sin envío** las que quedaron en la API.
+
+El frontend se construye desde [control-iot](control-iot) para Vercel. FastAPI se ejecuta en EC2 Debian con systemd y consulta MySQL en RDS. Consulta la [guía de uso, despliegue y WebSocket](docs/CONTROL-WEB.md).
 
 ## Versión 1.6.5 — demos físicas y enlace estable
 

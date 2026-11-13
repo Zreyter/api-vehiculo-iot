@@ -174,7 +174,10 @@ class SocketGatewayTests(unittest.TestCase):
             incoming = take(monitor, lambda f: f["tipo"] == "orden_recibida")
             self.assertEqual((incoming["direccion"], incoming["codigo"]), ("Panel → API", 2))
             self.assertEqual(monitor.receive_json()["tipo"], "orden_sin_envio")
-            self.assertFalse(db.data["historial"])
+            event = take(monitor, lambda f: f["tipo"] == "movimiento_individual")
+            self.assertFalse(event["orden_enviada"])
+            self.assertEqual(event["origen"], "Panel WS (sin envío)")
+            self.assertEqual(len(db.data["historial"]), 1)
 
             with self.client.websocket_connect(self.path, subprotocols=["iot-device-direct"],
                     headers={"authorization": "Bearer device-test"}) as device:
@@ -188,9 +191,65 @@ class SocketGatewayTests(unittest.TestCase):
                 event = take(monitor, lambda f: f["tipo"] == "movimiento_individual")
                 self.assertTrue(event["orden_enviada"])
                 self.assertFalse(event["salidas_aplicadas_confirmadas"])
-                self.assertEqual(len(db.data["historial"]), 1)
+                self.assertEqual(len(db.data["historial"]), 2)
                 self.assertTrue(send_input(control, 4, 0)["orden_enviada"])
                 self.assertEqual(device.receive_json(), {"tipo": "parar", "seq": 3})
+
+    def test_web_demo_finishes_without_device_even_if_it_connects_mid_demo(self):
+        db = FakeMySQL()
+        db.data["movimientos"][501]["duracion_ms"] = 150
+        db.data["movimientos"][503] = dict(db.data["movimientos"][501], id_demo_movimiento=503, orden=2)
+        settings = Settings(_env_file=None, control_token="TestAb12", device_token="device-test",
+                            browser_origins=[self.origin], mysql_password="local-fake")
+        self.client = TestClient(create_app(settings))
+
+        def take(socket, predicate):
+            for _ in range(20):
+                frame = socket.receive_json()
+                if predicate(frame):
+                    return frame
+            self.fail("No llegó el evento esperado.")
+
+        with (patch("app.core.database.mysql.connector.connect", db.connect), self.client,
+              self.open_browser("iot-monitor") as monitor, self.open_browser("iot-control") as control):
+            control.send_json({"id": 1, "accion": "demo_iniciar", "datos": {"id_demo": 42}})
+            reply = take(control, lambda f: f.get("id") == 1)
+            self.assertTrue(reply["ok"], reply)
+            first = take(monitor, lambda f: f["tipo"] == "demo_movimiento")
+            self.assertFalse(first["orden_enviada"])
+            with self.client.websocket_connect(self.path, subprotocols=["iot-device-direct"],
+                    headers={"authorization": "Bearer device-test"}) as device:
+                terminal = take(control, lambda f: f["tipo"] == "demo_finalizada")
+                self.assertEqual(terminal["id_ejecucion"], reply["datos"]["id_ejecucion"])
+                self.assertEqual(terminal["pasos_enviados"], 0)
+                self.assertEqual(terminal["pasos_sin_envio"], 2)
+                self.assertFalse(db.data["historial"])
+                control.send_json({"id": 2, "accion": "entrada", "datos": {"codigo": 2, "intencion": 1}})
+                self.assertTrue(take(control, lambda f: f.get("id") == 2)["datos"]["orden_enviada"])
+                self.assertEqual(device.receive_json(), {"tipo": "parar", "seq": 1})
+                self.assertEqual(device.receive_json()["codigo"], 2)
+
+    def test_web_demo_keeps_processing_steps_when_device_disconnects(self):
+        db = FakeMySQL()
+        db.data["movimientos"][501]["duracion_ms"] = 280
+        db.data["movimientos"][503] = dict(db.data["movimientos"][501], id_demo_movimiento=503, orden=2)
+        settings = Settings(_env_file=None, control_token="TestAb12", device_token="device-test",
+                            browser_origins=[self.origin], mysql_password="local-fake")
+        self.client = TestClient(create_app(settings))
+
+        with (patch("app.core.database.mysql.connector.connect", db.connect), self.client,
+              self.open_browser("iot-control") as control):
+            with self.client.websocket_connect(self.path, subprotocols=["iot-device-direct"],
+                    headers={"authorization": "Bearer device-test"}) as device:
+                control.send_json({"id": 1, "accion": "demo_iniciar", "datos": {"id_demo": 42}})
+                self.assertEqual(device.receive_json()["tipo"], "parar")
+                self.assertEqual(device.receive_json()["codigo"], 2)
+                while (first := control.receive_json())["tipo"] != "demo_movimiento":
+                    pass
+                self.assertTrue(first["orden_enviada"])
+            while (terminal := control.receive_json())["tipo"] != "demo_finalizada":
+                self.assertNotEqual(terminal["tipo"], "error", terminal)
+            self.assertEqual((terminal["pasos_enviados"], terminal["pasos_sin_envio"]), (1, 1))
 
     def test_voice_input_sends_firmware_timed_motion_and_rejects_invalid_duration(self):
         db = FakeMySQL()

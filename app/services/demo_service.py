@@ -22,12 +22,15 @@ class DemoRun:
     last_step: DemoStep | None = None
     terminal: Event | None = None
     physical: bool = False
+    continue_without_device: bool = False
     execution: str = field(default_factory=lambda: secrets.token_hex(16))
     deadline: float = field(default_factory=lambda: time.monotonic() + BROWSER_LEASE_SECONDS)
     key: str | None = None
     failure: str | None = None
     confirmed: bool = False
     sent: bool = False
+    sent_steps: int = 0
+    skipped_steps: int = 0
 
 
 class DemoService:
@@ -51,21 +54,30 @@ class DemoService:
             id_ejecucion=run.execution if run.physical else None,
             salidas_aplicadas_confirmadas=run.confirmed,
             orden_enviada=run.sent,
+            pasos_enviados=run.sent_steps if run.continue_without_device else None,
+            pasos_sin_envio=run.skipped_steps if run.continue_without_device else None,
         )
 
-    async def start(self, vehicle_id: int, demo_id: int, *, physical=False) -> Event:
+    async def start(self, vehicle_id: int, demo_id: int, *, physical=False, continue_without_device=False) -> Event:
         async with self.coordinator.lock(vehicle_id):
             if self.closing:
                 raise ServiceError(503, "El servidor está cerrando.")
+            if continue_without_device and vehicle_id not in self.coordinator.remote:
+                queue = self.devices.queues.get(vehicle_id) if self.devices else None
+                if queue:
+                    try:
+                        await asyncio.wait_for(queue.join(), timeout=2)
+                    except TimeoutError as exc:
+                        raise ServiceError(503, "MySQL sigue guardando órdenes anteriores. Vuelve a iniciar la demo.") from exc
             if self.coordinator.remote_busy(vehicle_id):
                 raise ServiceError(409, "Desactiva la conducción WiFi y espera sus registros antes de iniciar una DEMO.")
             if vehicle_id in self.coordinator.active:
                 raise ServiceError(409, "Ya hay una DEMO activa para este vehículo.")
             steps, state = await asyncio.to_thread(self.repository.demo_plan, vehicle_id, demo_id)
             if physical:
-                if not self.devices or not self.devices.status(vehicle_id)["listo"]:
+                if not continue_without_device and (not self.devices or not self.devices.status(vehicle_id)["listo"]):
                     raise ServiceError(409, "Conecta el ESP8266 en modo WIFI antes de ejecutar la secuencia física.")
-                if not self.devices.status(vehicle_id)["demo_temporizada"]:
+                if not continue_without_device and not self.devices.status(vehicle_id)["demo_temporizada"]:
                     raise ServiceError(409, "Actualiza el firmware del ESP8266 para admitir demos temporizadas. No se activaron salidas.")
                 commands = await asyncio.to_thread(self.repository.device_catalog, vehicle_id)
                 for step in steps:
@@ -77,7 +89,8 @@ class DemoService:
                         or commands.get(code) != step.id_comando or not 0 <= step.pausa_ms <= 60000
                         or not (0 <= step.duracion_ms <= 60000 if code == 0 else 1 <= step.duracion_ms <= 60000)):
                         raise ServiceError(422, f"Paso {step.orden}: usa movimiento 1–4 o 10–13 con duración de 1 a 60000 ms, o parada (0). Pausa máxima: 60000 ms. No admite botones 5–9.")
-            run = DemoRun(vehicle_id, demo_id, steps, state, physical=physical)
+            run = DemoRun(vehicle_id, demo_id, steps, state, physical=physical,
+                          continue_without_device=continue_without_device)
             self.coordinator.active[vehicle_id] = run
             initial = self._event("demo_iniciada", run)
             self.manager.publish(initial)
@@ -111,7 +124,10 @@ class DemoService:
                 if time.monotonic() >= run.deadline:
                     raise ServiceError(503, "Se perdió la conexión con la página; se detuvo la DEMO.")
                 if run.key:
-                    await self.devices.renew(run.vehicle_id, run.key)
+                    if run.continue_without_device:
+                        await self._device_action(run, self.devices.renew, run.vehicle_id, run.key)
+                    else:
+                        await self.devices.renew(run.vehicle_id, run.key)
                 await self._wait(run, int(DEMO_TICK_SECONDS * 1000))
         except Exception as exc:
             run.failure = exc.detail if isinstance(exc, ServiceError) else "Se perdió la comunicación del dispositivo."
@@ -119,9 +135,58 @@ class DemoService:
             if run.key:
                 await self.devices.stop(run.vehicle_id, run.key, reason="demo_conexion_perdida")
 
+    async def _device_action(self, run, action, *args, **kwargs):
+        try:
+            return await action(*args, **kwargs)
+        except (ServiceError, TimeoutError, OSError, RuntimeError):
+            key, run.key = run.key, None
+            if key:
+                try:
+                    await self.devices.stop(run.vehicle_id, key, reason="demo_conexion_perdida")
+                except ServiceError:
+                    pass
+            return {}
+
+    async def _run_optional_device(self, run):
+        vehicle = run.vehicle_id
+        device_status = self.devices.status(vehicle) if self.devices else {}
+        if device_status.get("listo") and device_status.get("demo_temporizada") and not run.stop.is_set():
+            receipt = await self._device_action(run, self.devices.acquire, vehicle, demo=run, direct_only=True)
+            run.key = receipt.get("lease_id")
+        for step in run.steps:
+            if run.stop.is_set():
+                break
+            run.last_state = await asyncio.to_thread(self.repository.apply, vehicle, step.id_comando, None)
+            if run.stop.is_set():
+                break
+            code = int(step.codigo)
+            receipt = {}
+            if run.key:
+                receipt = await self._device_action(run, self.devices.command, vehicle, run.key, code, record=False,
+                                                    demo_ms=step.duracion_ms if code else None)
+                if receipt.get("cancelado") and run.key:
+                    key, run.key = run.key, None
+                    await self._device_action(run, self.devices.stop, vehicle, key, reason="demo_conexion_perdida")
+            if run.stop.is_set():
+                break
+            run.sent = not receipt.get("cancelado") and bool(receipt.get("orden_enviada"))
+            if run.sent:
+                run.sent_steps += 1
+            else:
+                run.skipped_steps += 1
+            run.last_step = step
+            self.manager.publish(self._event("demo_movimiento", run))
+            await self._wait(run, step.duracion_ms)
+            if run.key and not run.stop.is_set():
+                await self._device_action(run, self.devices.command, vehicle, run.key, 0, record=False)
+            await self._wait(run, step.pausa_ms)
+
     async def _run_physical(self, run):
         heartbeat = asyncio.create_task(self._heartbeat(run))
         try:
+            if run.continue_without_device:
+                await self._run_optional_device(run)
+                return
             result = await self.devices.acquire(run.vehicle_id, demo=run)
             run.key = result["lease_id"]
             for step in run.steps:
@@ -161,10 +226,12 @@ class DemoService:
                 result = await self.devices.stop(run.vehicle_id, run.key, reason="fin_demo")
                 run.confirmed = result.get("salidas_confirmadas", False)
                 run.sent = result.get("orden_enviada", False)
-                if not (run.confirmed or run.sent):
+                if not run.continue_without_device and not (run.confirmed or run.sent):
                     run.failure = run.failure or result.get("mensaje", "Actúa el watchdog local; no se reanuda la secuencia.")
             else:
                 run.confirmed = run.sent = False
+            if run.continue_without_device:
+                run.sent = run.sent_steps > 0
             kind = "error" if run.failure else "demo_cancelada" if run.stop.is_set() else "demo_finalizada"
             run.terminal = self._event(kind, run, run.failure)
             self.manager.publish(run.terminal)

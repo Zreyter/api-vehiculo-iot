@@ -175,18 +175,21 @@ function delay(ms, signal) {
 
 export async function executeVoicePlan(plan, { send, signal, onStep }) {
   const steps = validateVoicePlan(plan);
+  let sent = 0;
   for (const [index, step] of steps.entries()) {
     signal.throwIfAborted();
     onStep(index + 1, steps.length);
     const order = await send(step.codigo, step.duracion_ms);
-    if (order.cancelado || order.sesion_activa === false || (!order.orden_enviada && !order.salidas_confirmadas)) {
-      throw new Error(order.mensaje || 'La API no pudo enviar el movimiento.');
+    if (order.cancelado || !(order.recibida || order.orden_enviada || order.salidas_confirmadas)) {
+      throw new Error(order.mensaje || 'La API no procesó el movimiento.');
     }
+    if (order.orden_enviada || order.salidas_confirmadas) sent++;
     await delay(step.duracion_ms, signal);
     const stop = await send(0);
-    if (stop.cancelado || stop.sesion_activa === false || (!stop.orden_enviada && !stop.salidas_confirmadas)) {
-      throw new Error(stop.mensaje || 'La API no pudo enviar la liberación.');
+    if (stop.cancelado || !(stop.recibida || stop.orden_enviada || stop.salidas_confirmadas)) {
+      throw new Error(stop.mensaje || 'La API no procesó la liberación.');
     }
     await delay(step.pausa_ms, signal);
   }
+  return { sent, total: steps.length };
 }

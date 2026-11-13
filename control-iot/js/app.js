@@ -43,13 +43,9 @@ class DrivePage {
       };
     });
     this.api.addEventListener('vehicle', ({ detail }) => {
-      if (this.execution && detail.id_ejecucion === this.execution &&
-          ['demo_finalizada', 'demo_cancelada', 'error'].includes(detail.tipo)) {
-        this.execution = null;
-        if (detail.mensaje) this.show(detail.mensaje);
-        else if (detail.orden_enviada && detail.tipo === 'demo_finalizada') this.show('Demo enviada por WebSocket');
-        this.render();
-      }
+      if (!detail.id_ejecucion || !['demo_finalizada', 'demo_cancelada', 'error'].includes(detail.tipo)) return;
+      if (detail.id_ejecucion === this.execution) this.finishDemo(detail);
+      else if (this.startingDemo) this.earlyDemo = detail;
     });
     this.api.addEventListener('disconnect', () => {
       this.revision++;
@@ -85,6 +81,18 @@ class DrivePage {
   }
 
   show(message) { $('notice').textContent = message || ''; }
+
+  finishDemo(detail) {
+    this.execution = null;
+    if (detail.mensaje) this.show(detail.mensaje);
+    else if (detail.tipo === 'demo_finalizada') {
+      const { pasos_enviados: sent, pasos_sin_envio: skipped } = detail;
+      this.show(Number.isInteger(sent) && Number.isInteger(skipped)
+        ? `Demo completada. Envíos a la placa: ${sent} de ${sent + skipped}.`
+        : 'Demo completada.');
+    } else this.show('Demo cancelada.');
+    this.render();
+  }
 
   showDevice(message) {
     const status = $('device-status');
@@ -220,11 +228,13 @@ class DrivePage {
       this.startingDemo = true;
       const result = await this.api.call('demo_iniciar', { id_demo: id });
       if (revision !== this.revision || document.hidden) await this.stop();
+      else if (this.earlyDemo?.id_ejecucion === result.id_ejecucion) this.finishDemo(this.earlyDemo);
       else this.execution = result.id_ejecucion;
     } catch (error) {
       this.show(error.message);
       await this.stop();
     } finally {
+      this.earlyDemo = null;
       this.startingDemo = this.busy = false;
       this.render();
     }
@@ -240,14 +250,10 @@ class DrivePage {
       const result = await this.api.call(execution ? 'demo_latido' : 'latido', {}, heartbeatTimeout);
       if (!execution && result.sesion_activa === false && revision === this.revision && intent === this.intent) {
         this.lease = false;
-        if (this.assist.running || this.assist.camera.stream) {
-          this.assist.show('La sesión de control se interrumpió.');
-          await this.stop();
-        }
       }
     }
     catch (error) {
-      if (revision === this.revision && (execution ? this.execution === execution : this.lease)) {
+      if (revision === this.revision && execution && this.execution === execution) {
         this.show(error.message);
         await this.stop();
       }

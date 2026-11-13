@@ -37,7 +37,21 @@ test('la ejecución libera salidas entre pasos y conserva la duración solicitad
   assert.deepEqual(calls, [[2, 100], [0], [3, 100], [0]]);
 });
 
-test('una cancelación o una orden sin envío impiden pasos posteriores', async () => {
+test('una secuencia continúa si la API recibe las órdenes sin placa', async () => {
+  const calls = [];
+  const summary = await executeVoicePlan({ pasos: [step, step] }, {
+    signal: new AbortController().signal,
+    onStep() {},
+    send(code) {
+      calls.push(code);
+      return { recibida: true, orden_enviada: false, sesion_activa: false };
+    },
+  });
+  assert.deepEqual(calls, [2, 0, 2, 0]);
+  assert.deepEqual(summary, { sent: 0, total: 2 });
+});
+
+test('una cancelación o una orden que la API no acepta impiden pasos posteriores', async () => {
   for (const cancel of [true, false]) {
     const run = new AbortController();
     const calls = [];

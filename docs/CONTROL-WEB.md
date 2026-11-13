@@ -10,7 +10,9 @@
 
 La app instalada abre Control. La pantalla adapta los joysticks y coloca **Parar**, las funciones y **Demo** en el área visible en vertical y horizontal. **Teclado y mando** abre un cuadro para seleccionar una acción, cambiar su tecla o restaurar las asignaciones. **IA** ofrece comandos por voz y conducción con la palma.
 
-Al pulsar **Activar control**, el panel envía las órdenes por WebSocket aunque el ESP8266 esté desconectado. En **Tramas en vivo**, `Panel → API · orden_recibida` indica que la API recibió la entrada y `api → esp8266 · orden` aparece cuando también la envía a la placa. Las órdenes **Sin envío** se muestran en la sesión del Monitor y se descartan. Al reconectar se envían las entradas nuevas. MySQL conserva el historial de los envíos a la placa.
+El control manual y por cámara envía las órdenes a FastAPI por WebSocket. Las órdenes individuales aceptadas se registran en MySQL, incluso con el ESP8266 apagado. **Panel WS (sin envío)** identifica las que se procesaron solo en la API. En **Tramas en vivo**, `Panel → API · orden_recibida` indica recepción y `api → esp8266 · orden` indica envío a la placa. Después de reconectar se envían las entradas nuevas.
+
+Las demos del panel y los planes por voz completan sus pasos en la API con el ESP8266 apagado. Al finalizar, Control muestra cuántos pasos se enviaron a la placa. Si se interrumpe el enlace físico durante una demo, sus pasos restantes continúan en la API. La demo se puede iniciar de nuevo para enviar la secuencia a la placa tras reconectarla. Los eventos de cada paso de una demo se muestran en Monitor y el historial de órdenes individuales incluye los pasos por voz.
 
 Control y Monitor usan el mismo código de acceso. **Recordar código en este dispositivo** lo guarda en el navegador para la dirección actual de la API. **Salir** borra el código guardado. En Swagger usa **Authorize** para las operaciones protegidas.
 

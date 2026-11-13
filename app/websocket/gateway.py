@@ -10,7 +10,7 @@ from secrets import compare_digest
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from app.core.errors import ServiceError
+from app.core.errors import DatabaseUnavailable, ServiceError
 from app.core.security import check_token
 from app.models.device import TimedControlInput, DeviceCommand
 from app.models.schemas import DemoRequest
@@ -75,11 +75,15 @@ class ControlConnection:
             **fields,
         }, role=MONITOR)
 
-    def received_without_forwarding(self, code, message):
-        if code:
-            self.trace_input("orden_sin_envio", code, mensaje=message)
-        return {"recibida": True, "orden_enviada": False, "sesion_activa": False,
-                "salidas_confirmadas": False, "mensaje": message}
+    async def received_without_forwarding(self, code, intent, duration, message, current):
+        if code and not await self.device.record_without_device(self.vehicle_id, code, current):
+            return {"cancelado": True}
+        if not current():
+            return {"cancelado": True}
+        self.trace_input("orden_sin_envio", code, intencion=intent, mensaje=message, duracion_ms=duration,
+                         registro="pendiente" if code else None)
+        return {"recibida": True, "codigo": code, "orden_enviada": False, "sesion_activa": bool(self.lease),
+                "salidas_confirmadas": False, "duracion_ms": duration, "mensaje": message}
 
     async def release_input_lease(self, key):
         if self.lease == key:
@@ -111,6 +115,10 @@ class ControlConnection:
         def current():
             return not self.closed and generation == self.input_generation and intent == self.input_intent
 
+        async def without_device(message):
+            pulse = order.pulso_ms or duration or (200 if 4 <= code <= 8 else 0)
+            return await self.received_without_forwarding(code, intent, pulse, message, current)
+
         if code and not self.lease:
             async with self.lifecycle:
                 if not current():
@@ -121,7 +129,11 @@ class ControlConnection:
                     except ServiceError as exc:
                         if not current():
                             return {"cancelado": True}
-                        return self.received_without_forwarding(code, exc.detail)
+                        if isinstance(exc, DatabaseUnavailable) or exc.status_code not in (409, 503):
+                            raise
+                        return await without_device(exc.detail)
+                    except (TimeoutError, OSError, RuntimeError):
+                        return await without_device("No se pudo abrir el canal de la placa.")
                     key = result["lease_id"]
                     if not current():
                         await self.release_input_lease(key)
@@ -130,15 +142,21 @@ class ControlConnection:
 
         key = self.lease
         if not key:
-            return self.received_without_forwarding(code, "Sin una sesión física activa.")
+            return await without_device("Sin una sesión física activa.")
         try:
             result = await self.device.command(vehicle, key, code, intent=intent,
                                                pulso_ms=order.pulso_ms, demo_ms=200 if code == 4 else duration)
-        except ServiceError as exc:
+        except (ServiceError, TimeoutError, OSError, RuntimeError) as exc:
             if not current():
                 return {"cancelado": True}
             await self.release_input_lease(key)
-            return self.received_without_forwarding(code, exc.detail)
+            if isinstance(exc, DatabaseUnavailable):
+                raise
+            message = exc.detail if isinstance(exc, ServiceError) else "Se interrumpió el canal de la placa."
+            return await without_device(message)
+        if result.get("cancelado") and not result.get("registro_ocupado") and current():
+            await self.release_input_lease(key)
+            return await without_device("Se interrumpió el canal de la placa.")
         ended = result.pop("sesion_finalizada", False)
         if ended and self.lease == key:
             self.lease = None
@@ -188,7 +206,7 @@ class ControlConnection:
                 return await self.device.stop(vehicle, lease) if lease else {}
             if action == "demo_iniciar":
                 demo = DemoRequest(**body)
-                event = await self.demos.start(vehicle, demo.id_demo, physical=True)
+                event = await self.demos.start(vehicle, demo.id_demo, physical=True, continue_without_device=True)
                 self.execution = event.id_ejecucion
                 return event.model_dump(mode="json")
             if action == "demo_cancelar":

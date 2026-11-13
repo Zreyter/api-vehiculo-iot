@@ -63,6 +63,9 @@ class Event(BaseModel):
     orden_enviada: bool = False
     modo_demo: Literal["registro", "fisico"] | None = None
     id_ejecucion: str | None = None
+    pasos_enviados: int | None = None
+    pasos_sin_envio: int | None = None
+    origen: str | None = None
 
 
 def state_event(kind: str, vehicle_id: int, state: dict | None, **kwargs) -> Event:

@@ -335,6 +335,18 @@ class DeviceService:
             raise ServiceError(503, "No se pudo renovar la comunicación con la placa.") from None
         return {"vence_en_ms": int(LEASE_SECONDS * 1000)}
 
+    async def record_without_device(self, vehicle_id, code, current):
+        async with self.coordinator.lock(vehicle_id):
+            if self.closing or vehicle_id in self.coordinator.active:
+                raise ServiceError(409, "El vehículo está ocupado por una DEMO o el servidor está cerrando.")
+            commands = await asyncio.to_thread(self.repository.device_catalog, vehicle_id)
+            if not current():
+                return False
+            if code not in commands:
+                raise ServiceError(422, "El código no existe o está inactivo en el catálogo del vehículo.")
+            self._record(vehicle_id, commands[code], None, confirmed=False, sent=False)
+            return True
+
     async def _released_proof(self, vehicle_id, key):
         ended = self.ended.get(vehicle_id)
         device = self.devices.get(vehicle_id)
@@ -545,27 +557,29 @@ class DeviceService:
                        else "Sin confirmación; actúa el watchdog local.")
             return {"salidas_confirmadas": False, "mensaje": message}
 
-    def _record(self, vehicle_id, command_id, key, *, confirmed=True):
+    def _record(self, vehicle_id, command_id, key, *, confirmed=True, sent=True):
         queue = self.queues.setdefault(vehicle_id, asyncio.Queue(maxsize=32))
         if queue.full():
             raise ServiceError(503, "La cola de registros está llena. Se detuvo la conducción.")
         self.coordinator.device_pending[vehicle_id] = self.coordinator.device_pending.get(vehicle_id, 0) + 1
-        queue.put_nowait((command_id, key, confirmed))
+        queue.put_nowait((command_id, key, confirmed, sent))
         if vehicle_id not in self.workers or self.workers[vehicle_id].done():
             self.workers[vehicle_id] = asyncio.create_task(self._log(vehicle_id, queue))
 
     async def _log(self, vehicle_id, queue):
         while True:
-            command, key, confirmed = await queue.get()
+            command, key, confirmed, sent = await queue.get()
             try:
-                kwargs = {} if confirmed else {"origin": "Panel WS (enviada)"}
+                origin = None if confirmed else "Panel WS (enviada)" if sent else "Panel WS (sin envío)"
+                kwargs = {"origin": origin} if origin else {}
                 state = await asyncio.to_thread(self.repository.apply_device, vehicle_id, command, **kwargs)
                 self.log_errors.pop(vehicle_id, None)
                 self.manager.publish(state_event("movimiento_individual", vehicle_id, state,
-                    salidas_aplicadas_confirmadas=confirmed, orden_enviada=not confirmed))
+                    salidas_aplicadas_confirmadas=confirmed, orden_enviada=sent and not confirmed, origen=origin))
             except Exception:
                 self.log_errors[vehicle_id] = "No se pudo registrar en RDS la orden. Revisa el historial antes de repetir."
-                await self.stop(vehicle_id, key, reason="registro_rds")
+                if key is not None:
+                    await self.stop(vehicle_id, key, reason="registro_rds")
             finally:
                 self.coordinator.device_pending[vehicle_id] -= 1
                 queue.task_done()

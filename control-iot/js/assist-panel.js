@@ -124,15 +124,15 @@ export class AssistPanel {
     const run = this.running = new AbortController();
     this.render();
     try {
-      await executeVoicePlan(plan, {
+      const { sent, total } = await executeVoicePlan(plan, {
         signal: run.signal,
         send: (code, duration) => this.drive.send(code, {
           duration,
           stillWanted: () => this.dialog.open && !run.signal.aborted && !document.hidden,
         }),
-        onStep: (step, count) => this.show(`Enviando paso ${step} de ${count}…`),
+        onStep: (step, count) => this.show(`Procesando paso ${step} de ${count}…`),
       });
-      if (this.running === run) this.show('Secuencia enviada por WebSocket.');
+      if (this.running === run) this.show(`Plan completado. Envíos a la placa: ${sent} de ${total}.`);
     } catch (error) {
       if (this.running === run) this.show(error.message);
     } finally {

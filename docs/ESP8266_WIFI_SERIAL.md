@@ -85,13 +85,28 @@ El valor inicial `START_IN_WIFI=true` arranca en WiFi con todas las salidas libe
 | `0` | Libera salidas, sin cambiar el modo actual |
 | `SERIAL` | Libera salidas y selecciona control local |
 | `WIFI` | Libera salidas, selecciona WiFi y permite una nueva sesión del panel |
-| `ESTADO` | Muestra modo, salida, WiFi y canal API |
+| `WIFI RED ["Nombre de red","Contraseña"]` | Prueba una red y la guarda si obtiene una dirección IP |
+| `ESTADO` | Muestra modo, salida, WiFi y canal API. Si hay conexión, incluye SSID e IP |
 | `ENCENDIDO 0` | Con las salidas liberadas, establece la suposición de carro apagado |
 | `ENCENDIDO 1` | Con las salidas liberadas, establece la suposición de carro encendido |
 
 La aplicación C# original sigue enviando números a 9600 baudios. Su primera orden no nula toma control serial. Para regresar al panel, cierra esa aplicación si mantiene ocupado el COM, abre el monitor serial y envía `WIFI`. No se mezclan órdenes seriales no nulas y órdenes remotas. El comando de parada 0 puede liberar desde ambos canales.
 
 En modo serial, perder WiFi o apagar EC2/RDS **no libera ni interrumpe una salida local mantenida**; se libera con el 0 del programa local. Los cambios seriales se reportan como estado de la placa cuando hay conexión, pero no se escriben en RDS.
+
+### Registrar una red desde el monitor serie
+
+Carga una vez el firmware que incluye `WIFI RED`. Después puedes cambiar la red desde el monitor serie por USB a **9600 baudios** con **Nueva línea**, incluso si la placa está desconectada de WiFi. Envía una línea como esta con los datos de tu red de **2.4 GHz**:
+
+```text
+WIFI RED ["Mi red de 2.4 GHz","ClaveDeEjemplo123"]
+```
+
+Escribe el SSID y la clave tal como aparecen, respetando mayúsculas y espacios. Para una red abierta, usa `""` como clave. Dentro de las comillas, escribe `\"` para una comilla literal y `\\` para una barra inversa. El ESP8266 omite la clave en sus respuestas.
+
+La placa cierra la sesión remota durante la prueba y sigue atendiendo el puerto serie. Tiene hasta 20 segundos para obtener una IP. Si la guarda, verás **Red guardada y conectada**. La última red guardada reemplaza a la anterior y se usa al reiniciar. Si falla el intento o el guardado, la placa intenta volver a la configuración anterior. Antes del primer registro, usa la red de `config_carro.h` si está configurada.
+
+Envía `ESTADO` para comprobar el SSID, la IP y el canal API. El estado muestra `Perfil: guardado` cuando la placa usa la red registrada por serie. Para conducir por WiFi, la red debe tener acceso al servidor o relay configurado. Envía `WIFI` si estabas en modo serial y vuelve a activar la conducción en el panel.
 
 ## 5. Usar Conducción
 

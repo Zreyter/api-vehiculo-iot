@@ -1,5 +1,6 @@
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
+#include <LittleFS.h>
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
 #include "ControlCore.h"
@@ -17,11 +18,23 @@ WebSocketsClient socketAPI;
 String controlID;
 uint32_t appliedSeq=0, lastStatus=0;
 bool socketUp=false, networkStarted=false;
-char serialLine[48];
-uint8_t serialLength=0;
+// Hasta seis caracteres JSON por byte de SSID o clave (32 + 64 bytes).
+char serialLine[640];
+uint16_t serialLength=0;
 bool serialOverflow=false;
 uint32_t lastSerialByte=0;
 uint32_t sentFrames=0, failedFrames=0, receivedFrames=0;
+
+struct WifiCredentials {
+  char ssid[33];
+  char password[65];
+};
+const char WIFI_PROFILE[] = "/wifi-serial.dat";
+const char WIFI_PROFILE_TEMP[] = "/wifi-serial.tmp";
+constexpr uint32_t WIFI_TRIAL_MS = 20000;
+WifiCredentials savedWifi{}, trialWifi{};
+bool wifiStorageReady = false, wifiTrial = false;
+uint32_t wifiTrialStarted = 0;
 
 void registro(uint8_t data, uint8_t clock, uint8_t latch, uint8_t value) {
   digitalWrite(latch, LOW); shiftOut(data, clock, MSBFIRST, value); digitalWrite(latch, HIGH);
@@ -100,6 +113,7 @@ void receiveOrder(uint8_t* data, size_t length) {
   if(applied) controlID=id;
 }
 void socketEvent(WStype_t type, uint8_t* payload, size_t length) {
+  if (wifiTrial && type != WStype_DISCONNECTED) return;
   if(type==WStype_CONNECTED) {
     socketUp=true; controlID=""; appliedSeq=0; lastStatus=millis();
     if(core.remoteMode)core.resetRemote();
@@ -110,9 +124,111 @@ void socketEvent(WStype_t type, uint8_t* payload, size_t length) {
     Serial.printf("[%lu] API desconectada. WiFi=%d RSSI=%d heap=%u motivo=%.*s\n",millis(),WiFi.status(),WiFi.RSSI(),ESP.getFreeHeap(),(int)(length>64?64:length),payload?(char*)payload:"");
   }
 }
+bool validWifiCredentials(const WifiCredentials& credentials) {
+  const size_t ssidLength = strnlen(credentials.ssid, sizeof(credentials.ssid));
+  const size_t passwordLength = strnlen(credentials.password, sizeof(credentials.password));
+  if (ssidLength == 0 || ssidLength >= sizeof(credentials.ssid)) return false;
+  if (passwordLength == 0 || (passwordLength >= 8 && passwordLength <= 63)) return true;
+  if (passwordLength != 64) return false;
+  for (size_t i = 0; i < passwordLength; ++i) {
+    if (!isxdigit(static_cast<unsigned char>(credentials.password[i]))) return false;
+  }
+  return true;
+}
+
+bool readWifiProfile(const char* path, WifiCredentials& credentials) {
+  File file = LittleFS.open(path, "r");
+  return file && file.size() == sizeof(credentials) &&
+         file.read(reinterpret_cast<uint8_t*>(&credentials), sizeof(credentials)) == sizeof(credentials) &&
+         validWifiCredentials(credentials);
+}
+
+bool saveWifiProfile(const WifiCredentials& credentials) {
+  File file = LittleFS.open(WIFI_PROFILE_TEMP, "w");
+  if (!file) return false;
+  const size_t written = file.write(reinterpret_cast<const uint8_t*>(&credentials), sizeof(credentials));
+  file.close();
+  WifiCredentials check{};
+  const bool saved = written == sizeof(credentials) && readWifiProfile(WIFI_PROFILE_TEMP, check) &&
+                     memcmp(&credentials, &check, sizeof(credentials)) == 0 &&
+                     LittleFS.rename(WIFI_PROFILE_TEMP, WIFI_PROFILE);
+  if (!saved) LittleFS.remove(WIFI_PROFILE_TEMP);
+  return saved;
+}
+
+void connectConfiguredWifi() {
+  if (savedWifi.ssid[0]) WiFi.begin(savedWifi.ssid, savedWifi.password);
+  else if (WIFI_SSID[0] && strcmp(WIFI_SSID, "TU_RED_WIFI") != 0) WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void registerWifi(const char* arguments) {
+  if (wifiTrial) {
+    Serial.println(F("Ya se esta probando una red. Consulta ESTADO."));
+    return;
+  }
+  JsonDocument document;
+  const auto error = deserializeJson(document, arguments, DeserializationOption::NestingLimit(1));
+  const JsonArrayConst fields = document.as<JsonArrayConst>();
+  const JsonString ssid = fields[0].as<JsonString>();
+  const JsonString password = fields[1].as<JsonString>();
+  WifiCredentials credentials{};
+  if (error || fields.size() != 2 || ssid.isNull() || password.isNull() ||
+      ssid.size() >= sizeof(credentials.ssid) || password.size() >= sizeof(credentials.password) ||
+      memchr(ssid.c_str(), 0, ssid.size()) || memchr(password.c_str(), 0, password.size())) {
+    Serial.println(F("Usa WIFI RED [\"Nombre de red\",\"Contrasena\"]"));
+    return;
+  }
+  memcpy(credentials.ssid, ssid.c_str(), ssid.size());
+  memcpy(credentials.password, password.c_str(), password.size());
+  if (!validWifiCredentials(credentials)) {
+    Serial.println(F("SSID: 1-32 bytes. Clave: vacia, 8-63 bytes o 64 digitos hexadecimales."));
+    return;
+  }
+  if (!wifiStorageReady) {
+    Serial.println(F("Memoria WiFi no disponible. Se conserva la configuracion anterior."));
+    return;
+  }
+
+  trialWifi = credentials;
+  wifiTrial = true;
+  core.lost();  // Libera el control remoto al cerrar su canal.
+  socketUp = false;
+  controlID = "";
+  if (networkStarted) socketAPI.disconnect();
+  WiFi.disconnect(false, false);
+  WiFi.begin(trialWifi.ssid, trialWifi.password);
+  wifiTrialStarted = millis();
+  Serial.println(F("Probando la red nueva (hasta 20 segundos)..."));
+}
+
+void checkWifiTrial() {
+  if (!wifiTrial) return;
+  const bool connected = WiFi.status() == WL_CONNECTED && WiFi.SSID() == trialWifi.ssid;
+  if (!connected && millis() - wifiTrialStarted < WIFI_TRIAL_MS) return;
+
+  if (networkStarted) socketAPI.disconnect();
+  if (connected && saveWifiProfile(trialWifi)) {
+    savedWifi = trialWifi;
+    Serial.printf("Red guardada y conectada. IP: %s\n", WiFi.localIP().toString().c_str());
+  } else {
+    Serial.println(connected ? F("No se pudo guardar la red. Volviendo a la configuracion anterior.")
+                             : F("No se pudo conectar. Volviendo a la configuracion anterior."));
+    WiFi.disconnect(false, true);  // WiFi.persistent(false): solo borra la configuracion temporal.
+    connectConfiguredWifi();
+  }
+  trialWifi = {};
+  wifiTrial = false;
+}
+
 void serialCommand() {
   serialLine[serialLength]='\0';
-  if(serialOverflow){Serial.println(F("Entrada serial demasiado larga; descartada."));return;}
+  if(serialOverflow){Serial.println(F("Entrada serial invalida o demasiado larga; descartada."));return;}
+  const char* input = serialLine + strspn(serialLine, " \t");
+  if (strncasecmp(input, "WIFI RED", 8) == 0 &&
+      (input[8] == ' ' || input[8] == '\t' || input[8] == '\0')) {
+    registerWifi(input + 8);
+    return;
+  }
   String line=serialLine;line.trim();line.toUpperCase();
   if(line.length()==0)return;
   if(line=="SERIAL") {setMode(false);Serial.println(F("Modo SERIAL."));return;}
@@ -127,10 +243,15 @@ void serialCommand() {
   if(line=="ESTADO") {
     Serial.printf("Modo: %s | salida: %u | WiFi: %s | API: %s\n",core.remoteMode?"WIFI":"SERIAL",core.code,
                   WiFi.status()==WL_CONNECTED?"conectado":"sin red",socketUp?"conectada":"sin canal");
+    if (wifiTrial) Serial.println(F("Probando nueva red WiFi."));
+    else if (WiFi.status() == WL_CONNECTED) {
+      Serial.printf("SSID: %s | IP: %s | Perfil: %s\n", WiFi.SSID().c_str(),
+                    WiFi.localIP().toString().c_str(), savedWifi.ssid[0] ? "guardado" : "inicial");
+    }
     Serial.printf("RSSI=%d dBm | heap=%u | tiempo_ms=%lu\n",WiFi.RSSI(),ESP.getFreeHeap(),millis());
     Serial.printf("TX=%lu | TX_fallidos=%lu | RX=%lu | edad_estado_ms=%lu\n",sentFrames,failedFrames,receivedFrames,millis()-lastStatus);return;
   }
-  for(size_t i=0;i<line.length();++i)if(!isDigit(line[i])) {Serial.println(F("Usa 0-13, SERIAL, WIFI, ESTADO o ENCENDER o APAGAR."));return;}
+  for(size_t i=0;i<line.length();++i)if(!isDigit(line[i])) {Serial.println(F("Usa 0-13, SERIAL, WIFI, ESTADO, WIFI RED, ENCENDER o APAGAR."));return;}
   if(line.length()>2 || line.toInt()>13){Serial.println(F("Comando invalido: usa 0 a 13."));return;}
   const uint8_t code=line.toInt();
   // Una orden local toma el control aunque interrumpa un pulso remoto.
@@ -142,24 +263,30 @@ void readSerial() {
   while(Serial.available()) {
     const char c=Serial.read();lastSerialByte=millis();
     if(c=='\r'||c=='\n') {
-      serialCommand();serialLength=0;serialOverflow=false;
-    } else if(serialLength<sizeof(serialLine)-1)serialLine[serialLength++]=c;
+      serialCommand();memset(serialLine,0,serialLength);serialLength=0;serialOverflow=false;
+    } else if(c!='\0' && serialLength<sizeof(serialLine)-1)serialLine[serialLength++]=c;
     else serialOverflow=true;
   }
   // Una línea parcial no se ejecuta sola ni mantiene ocupado el bucle.
-  if((serialLength||serialOverflow) && millis()-lastSerialByte>1000) {serialLength=0;serialOverflow=false;}
+  if((serialLength||serialOverflow) && millis()-lastSerialByte>1000) {
+    memset(serialLine,0,serialLength);serialLength=0;serialOverflow=false;
+  }
 }
 void setup() {
   Serial.begin(9600);
   for(uint8_t pin : {DATOS_1,RELOJ_1,LATCH_1,DATOS_2,RELOJ_2,LATCH_2}){pinMode(pin,OUTPUT);digitalWrite(pin,LOW);}
   core.mode(START_IN_WIFI);
   WiFi.persistent(false);WiFi.mode(WIFI_STA);WiFi.setSleepMode(WIFI_NONE_SLEEP);WiFi.setAutoReconnect(true);
-  if(String(WIFI_SSID)!="TU_RED_WIFI")WiFi.begin(WIFI_SSID,WIFI_PASSWORD);
+  wifiStorageReady = LittleFS.begin();
+  if (wifiStorageReady && !readWifiProfile(WIFI_PROFILE, savedWifi)) savedWifi = {};
+  connectConfiguredWifi();
   socketAPI.onEvent(socketEvent);
-  Serial.println(F("Control listo a 9600 baudios. Numeros 0-13, SERIAL, WIFI, ESTADO."));
+  Serial.println(F("Control listo a 9600 baudios. Numeros 0-13, SERIAL, WIFI, ESTADO, WIFI RED."));
 }
 void loop() {
   readSerial();tickCore(millis());
+  checkWifiTrial();
+  if (wifiTrial) { yield(); return; }
   // The async transport can close TCP without issuing WStype_DISCONNECTED.
   if(socketUp && !socketAPI.isConnected()) {
     socketUp=false;controlID="";core.lost();

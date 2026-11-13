@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from app.core.errors import ServiceError
 from app.core.security import check_token
-from app.models.device import ControlInput, DeviceCommand
+from app.models.device import TimedControlInput, DeviceCommand
 from app.models.schemas import DemoRequest
 
 router = APIRouter()
@@ -97,6 +97,10 @@ class ControlConnection:
             raise ServiceError(422, "Falta la intención de la orden.")
         if (code == 9 and order.pulso_ms not in (200, 2000)) or (code != 9 and order.pulso_ms is not None):
             raise ServiceError(422, "El código 9 requiere un pulso de 200 o 2000 ms.")
+        duration = order.duracion_ms
+        if duration is not None and (code not in (1, 2, 3, 4, 10, 11, 12, 13)
+                                     or (code == 4 and duration != 200)):
+            raise ServiceError(422, "Duración incompatible con el movimiento.")
         if self.closed or intent <= self.input_intent:
             return {"cancelado": True}
         self.input_intent = intent
@@ -129,7 +133,7 @@ class ControlConnection:
             return self.received_without_forwarding(code, "Sin una sesión física activa.")
         try:
             result = await self.device.command(vehicle, key, code, intent=intent,
-                                               pulso_ms=order.pulso_ms, demo_ms=200 if code == 4 else None)
+                                               pulso_ms=order.pulso_ms, demo_ms=200 if code == 4 else duration)
         except ServiceError as exc:
             if not current():
                 return {"cancelado": True}
@@ -143,7 +147,7 @@ class ControlConnection:
     async def dispatch(self, action, body):
         vehicle = self.vehicle_id
         if action == "entrada":
-            return await self.receive_input(ControlInput(**body))
+            return await self.receive_input(TimedControlInput(**body))
         if action == "estado":
             return self.device.status(vehicle)
         if action == "orden":

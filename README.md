@@ -1,6 +1,6 @@
 # Excavadora IoT 2.0.4
 
-[Control](https://vehiculo-pi.vercel.app/) se puede instalar como app web. Los joysticks, **Parar**, las funciones y **Demo** se ajustan al alto disponible en vertical y horizontal. **Teclado y mando** abre los ajustes de teclas, e **IA** muestra las opciones de voz y gestos con cámara en preparación.
+[Control](https://vehiculo-pi.vercel.app/) se puede instalar como app web. Los joysticks, **Parar**, las funciones y **Demo** se ajustan al alto disponible en vertical y horizontal. **Teclado y mando** abre los ajustes de teclas. **IA** reúne comandos por voz y conducción con la palma. Consulta la [configuración de IA](docs/CONTROL-WEB.md#control-con-ia).
 
 [Monitor WebSocket](https://vehiculo-pi.vercel.app/monitor.html) y [Swagger](https://cape-landside-tidy.ngrok-free.dev/docs) tienen sus propias páginas. Control puede enviar órdenes a la API aunque el ESP8266 esté desconectado. Monitor las muestra en vivo y marca como **Sin envío** las que quedaron en la API.
 

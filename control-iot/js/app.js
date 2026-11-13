@@ -1,5 +1,6 @@
 import { AccessForm, VehicleApi, vehicleId } from './api.js';
 import { Joystick, bucketDirections, vehicleDirections } from './joystick.js';
+import { AssistPanel } from './assist-panel.js';
 
 const $ = id => document.getElementById(id);
 const { actions, resolveCommands, createController, gamepadInputs } = globalThis.VehicleDrive;
@@ -29,6 +30,7 @@ class DrivePage {
       new Joystick($('vehicle-stick'), vehicleDirections, inputs),
       new Joystick($('bucket-stick'), bucketDirections, inputs),
     ];
+    this.assist = new AssistPanel(this, actions);
     $('arm').onclick = () => this.activate();
     $('stop').onclick = () => this.stop();
     $('run-demo').onclick = () => this.execution ? this.stop() : this.runDemo();
@@ -51,6 +53,9 @@ class DrivePage {
     });
     this.api.addEventListener('disconnect', () => {
       this.revision++;
+      this.commands = null;
+      this.assist.cancel();
+      if (this.assist.dialog.open) this.assist.dialog.close();
       this.execution = null;
       this.lease = false;
       this.showDevice('Consultando la placa');
@@ -110,19 +115,30 @@ class DrivePage {
     $('run-demo').disabled = this.busy || (!this.execution && !$('demo').value);
     $('run-demo').textContent = this.execution ? 'Cancelar demo' : 'Ejecutar demo';
     $('demo').disabled = this.busy || !!this.execution;
+    $('open-assist').disabled = !this.commands || this.api.socket?.readyState !== WebSocket.OPEN;
     for (const stick of this.sticks || []) stick.element.setAttribute('aria-disabled', String(!armed));
     document.querySelectorAll('[data-code]').forEach(button => {
       button.disabled = !armed || !this.commands?.has(Number(button.dataset.code));
     });
+    this.assist?.render();
   }
 
   activate() {
-    if (this.busy || this.stopping || !this.commands || this.execution || document.hidden) return;
-    if (this.controller.arm({ commands: this.commands, transport: 'wifi' })) this.show('');
+    if (this.busy || this.stopping || !this.commands || this.execution || document.hidden) return false;
+    const armed = this.controller.arm({ commands: this.commands, transport: 'wifi' });
+    if (armed) this.show('');
+    return armed;
+  }
+
+  canUseAssist() {
+    return this.assist.dialog.open && this.api.socket?.readyState === WebSocket.OPEN &&
+      this.commands && !this.busy && !this.stopping && !this.execution &&
+      !this.controller.snapshot().armed && !document.hidden;
   }
 
   press(code, source) {
     if (code === 0) { void this.stop(); return; }
+    if (this.assist.dialog.open !== (source === 'camera')) return;
     if (code === 8) { if (!document.hidden) void this.runDemo(); return; }
     if (document.hidden || !this.controller.press(code, source)) return;
     if (source.startsWith('key:') || source.startsWith('pad:')) {
@@ -153,6 +169,7 @@ class DrivePage {
     const action = actions.find(item => item.code === code);
     const data = { codigo: action.wireCode ?? code, intencion: ++this.intent };
     if (data.codigo === 9) data.pulso_ms = action.duration;
+    if (options.duration !== undefined) data.duracion_ms = options.duration;
     const result = await this.api.call('entrada', data);
     if (revision !== this.revision || data.intencion !== this.intent || result.cancelado) return result;
     this.lease = result.sesion_activa === true;
@@ -164,7 +181,9 @@ class DrivePage {
   stop() {
     this.revision++;
     if (this.stopping) return this.stopping;
+    this.assist.cancel();
     this.stopping = this.release().finally(() => { this.stopping = null; this.render(); });
+    this.render();
     return this.stopping;
   }
 
@@ -221,6 +240,10 @@ class DrivePage {
       const result = await this.api.call(execution ? 'demo_latido' : 'latido', {}, heartbeatTimeout);
       if (!execution && result.sesion_activa === false && revision === this.revision && intent === this.intent) {
         this.lease = false;
+        if (this.assist.running || this.assist.camera.stream) {
+          this.assist.show('La sesión de control se interrumpió.');
+          await this.stop();
+        }
       }
     }
     catch (error) {
@@ -264,18 +287,23 @@ class DrivePage {
     };
     refresh();
     $('open-bindings').onclick = () => this.openDialog('key-settings');
-    $('open-assist').onclick = () => this.openDialog('assist-settings');
+    $('open-assist').onclick = () => {
+      this.assist.select();
+      this.openDialog('assist-settings');
+    };
   }
 
   openDialog(id) {
     if (this.controller.snapshot().armed || this.execution || this.startingDemo) void this.stop();
     $(id).showModal();
+    this.render();
   }
 
   bindInputs() {
     window.addEventListener('keydown', event => {
       if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || !this.api.socket ||
           event.target.closest?.('input,select,[contenteditable]')) return;
+      if (this.assist.dialog.open && event.target.closest?.('button')) return;
       const action = actions.find(item => this.keys[item.code] === event.code);
       if (!action) return;
       event.preventDefault();
@@ -284,9 +312,9 @@ class DrivePage {
     window.addEventListener('keyup', event => this.releaseInput('key:' + event.code));
     document.addEventListener('visibilitychange', () => { if (document.hidden) void this.stop(); });
     window.addEventListener('blur', () => {
-      if (this.controller.snapshot().armed || this.execution || this.startingDemo) void this.stop();
+      if (this.controller.snapshot().armed || this.execution || this.startingDemo || this.assist.running) void this.stop();
     });
-    window.addEventListener('pagehide', () => this.api.close());
+    window.addEventListener('pagehide', () => { this.assist.cancel(); this.api.close(); });
     const poll = () => {
       const pad = Array.from(navigator.getGamepads?.() || []).find(p => p?.mapping === 'standard');
       const next = pad ? gamepadInputs(pad, .25, this.padInputs) : new Set();

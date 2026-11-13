@@ -20,3 +20,5 @@ class Settings(BaseSettings):
     control_token: SecretStr = SecretStr("")
     device_token: SecretStr = SecretStr("")
     browser_origins: list[str] = Field(default_factory=list)
+    openai_api_key: SecretStr = SecretStr("")
+    openai_voice_model: str = "gpt-4.1-mini"

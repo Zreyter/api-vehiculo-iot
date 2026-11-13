@@ -192,6 +192,27 @@ class SocketGatewayTests(unittest.TestCase):
                 self.assertTrue(send_input(control, 4, 0)["orden_enviada"])
                 self.assertEqual(device.receive_json(), {"tipo": "parar", "seq": 3})
 
+    def test_voice_input_sends_firmware_timed_motion_and_rejects_invalid_duration(self):
+        db = FakeMySQL()
+        settings = Settings(_env_file=None, control_token="TestAb12", device_token="device-test",
+                            browser_origins=[self.origin], mysql_password="local-fake")
+        self.client = TestClient(create_app(settings))
+        with (patch("app.core.database.mysql.connector.connect", db.connect), self.client,
+              self.client.websocket_connect(self.path, subprotocols=["iot-device-direct"],
+                  headers={"authorization": "Bearer device-test"}) as device,
+              self.open_browser("iot-control") as control):
+            for intent, code, duration in [(1, 9, 200), (2, 4, 300), (3, 2, 99), (4, 2, 300)]:
+                control.send_json({"id": intent, "accion": "entrada", "datos": {
+                    "codigo": code, "intencion": intent, "duracion_ms": duration,
+                    **({"pulso_ms": 200} if code == 9 else {}),
+                }})
+                while (response := control.receive_json()).get("id") != intent:
+                    pass
+                self.assertEqual(response["ok"], intent == 4, response)
+            self.assertEqual(device.receive_json()["tipo"], "parar")
+            order = device.receive_json()
+            self.assertEqual((order["tipo"], order["codigo"], order["demo_ms"]), ("orden", 2, 300))
+
     def test_direct_device_receives_orders_and_stop_without_sending_any_messages(self):
         db = FakeMySQL()
         db.data["movimientos"][501]["duracion_ms"] = 100

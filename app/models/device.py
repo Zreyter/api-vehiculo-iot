@@ -13,5 +13,9 @@ class ControlInput(BaseModel):
     intencion: int | None = Field(default=None, gt=0, le=9007199254740991, strict=True)
 
 
+class TimedControlInput(ControlInput):
+    duracion_ms: int | None = Field(default=None, ge=100, le=1000, strict=True)
+
+
 class DeviceCommand(ControlLease, ControlInput):
     pass

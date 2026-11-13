@@ -8,7 +8,7 @@
 | Monitor | [vehiculo-pi.vercel.app/monitor.html](https://vehiculo-pi.vercel.app/monitor.html) | Movimientos y tramas WebSocket en vivo. |
 | Swagger | [API /docs](https://cape-landside-tidy.ngrok-free.dev/docs) | Operaciones REST y administración del catálogo. |
 
-La app instalada abre Control. La pantalla adapta los joysticks y coloca **Parar**, las funciones y **Demo** en el área visible en vertical y horizontal. **Teclado y mando** abre un cuadro para seleccionar una acción, cambiar su tecla o restaurar las asignaciones. **IA** abre las opciones de voz y gestos con cámara. Ambas están en preparación.
+La app instalada abre Control. La pantalla adapta los joysticks y coloca **Parar**, las funciones y **Demo** en el área visible en vertical y horizontal. **Teclado y mando** abre un cuadro para seleccionar una acción, cambiar su tecla o restaurar las asignaciones. **IA** ofrece comandos por voz y conducción con la palma.
 
 Al pulsar **Activar control**, el panel envía las órdenes por WebSocket aunque el ESP8266 esté desconectado. En **Tramas en vivo**, `Panel → API · orden_recibida` indica que la API recibió la entrada y `api → esp8266 · orden` aparece cuando también la envía a la placa. Las órdenes **Sin envío** se muestran en la sesión del Monitor y se descartan. Al reconectar se envían las entradas nuevas. MySQL conserva el historial de los envíos a la placa.
 
@@ -167,11 +167,13 @@ Para actualizar a 2.0.2, instala primero la API en EC2 y después carga el firmw
 
 Los accesos antiguos `/panel/`, `/panel/ws/vehiculos/{id}` y `/dispositivo/ws/vehiculos/{id}` se conservan para la app de escritorio y firmware anteriores. Los dos accesos WebSocket antiguos usan el mismo gateway y también alimentan el monitor nuevo.
 
-## Integración de IA
+## Control con IA
 
-`control-iot/js/assist.js` define las entradas para ambos proveedores.
+Conecta Control y abre **IA**.
 
-- **Voz.** Capturar una frase en español y enviarla al backend que alojará el modelo. El modelo devuelve `{"pasos":[{"codigo":1,"duracion_ms":400,"pausa_ms":200}]}`. Pasar el resultado por `validateVoicePlan` también en el punto de ejecución. Para «saluda» el proveedor puede proponer alternar la pala de lado a lado. Para «baila» puede combinar movimientos cortos y pausas. Mostrar el plan y, tras confirmarlo, ejecutarlo a través del servicio de demos o del controlador vigente. Cancelar al parar, perder la sesión u ocultar la página. El modelo se limita a proponer datos y la clave del proveedor vive en el backend.
-- **Gestos.** Inyectar a `CameraGestureInput` un detector `detect(video)` que retorne `{abierta, x, y}` con coordenadas normalizadas según el video que ve el usuario. Centrar la palma abierta y moverla a un borde. Arriba avanza, abajo retrocede y los lados giran. Volver al centro, cerrar la mano o perder el seguimiento libera la orden. Conecta `press` y `release` al controlador existente. Activa la cámara por acción explícita del usuario y llama a `stop()` al salir del modo o detener el vehículo.
+- **Comandos por voz.** Usa **Usar micrófono** en un navegador compatible o escribe la frase. Prueba «saluda con la pala» o «baila con dos giros cortos». Pulsa **Preparar plan**, revisa los movimientos y pulsa **Ejecutar plan**. **Parar**, cerrar el cuadro, perder la conexión u ocultar la página cancelan los pasos pendientes. Cada paso usa una duración de 100 a 1000 ms en el ESP8266 y se libera antes de la pausa. El giro derecho de la pala dura 200 ms.
+- **Gestos con cámara.** Pulsa **Activar cámara y control** y permite el acceso. Coloca una palma abierta en el centro del video y muévela hacia el borde superior para avanzar, inferior para retroceder o lateral para girar. Volver hacia el centro, cerrar la mano o perder el seguimiento libera el movimiento. El detector MediaPipe procesa el video en el navegador y descarga sus archivos al activar la cámara.
 
-El menú **IA** ya muestra **Comandos por voz** y **Gestos con cámara**. Queda por conectar el modelo de lenguaje, la captura de voz y el detector de manos a esos controles.
+Para habilitar el planificador en EC2 Debian, actualiza primero la API con el instalador de este repositorio y edita `/etc/vehiculo-iot/api.env` con `sudoedit`. Agrega `OPENAI_API_KEY` con la clave del proyecto de OpenAI. El modelo predeterminado es `gpt-4.1-mini` y se puede configurar con `OPENAI_VOICE_MODEL`. Aplica los cambios con `sudo systemctl restart vehiculo-iot` y vuelve a desplegar el frontend en Vercel. En local se usan las mismas variables en `.env`. La cámara puede usarse sin la clave de OpenAI.
+
+`POST /ia/plan` usa el token de control y envía a OpenAI el texto de la orden. Algunos navegadores usan un servicio remoto propio para el dictado. El plan validado admite hasta ocho movimientos y ocho segundos de duración y pausas. Las órdenes se envían por el WebSocket existente con `duracion_ms` y el firmware directo aplica su temporizador de demos. Se necesita la versión del firmware que admite las demos temporizadas.

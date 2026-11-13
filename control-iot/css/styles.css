@@ -199,6 +199,24 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
 }
 .control-page .binding-grid select { min-width: 0; }
 .control-page .assist-options { display: grid; gap: 6px; }
+.control-page .assist-mode { display: grid; gap: 6px; }
+.control-page .assist-mode[hidden] { display: none; }
+.control-page .assist-mode ol { margin: 0; padding-inline-start: 1.7rem; }
+.control-page .gesture-preview { position: relative; width: fit-content; max-width: 100%; margin-inline: auto; }
+.control-page .gesture-preview video {
+  display: block;
+  max-width: 100%;
+  max-height: min(220px, 36dvh);
+  transform: scaleX(-1);
+  border-radius: 8px;
+}
+.control-page .gesture-center {
+  position: absolute;
+  inset: 36%;
+  border: 2px dashed white;
+  border-radius: 50%;
+  pointer-events: none;
+}
 
 @media (max-width: 580px) {
   .control-page .toolbar {

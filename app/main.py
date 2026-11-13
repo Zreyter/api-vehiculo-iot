@@ -10,6 +10,7 @@ from app.api.routes import router
 from app.api.catalog_routes import router as catalog_router
 from app.api.panel_routes import router as panel_router
 from app.api.device_routes import router as device_router
+from app.api.assist_routes import router as assist_router
 from app.core.config import Settings
 from app.core.database import Database
 from app.core.errors import ServiceError
@@ -56,8 +57,8 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.browser_origins,
-        allow_methods=["GET"],
-        allow_headers=["Authorization", "ngrok-skip-browser-warning"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type", "ngrok-skip-browser-warning"],
     )
 
     @application.get("/docs", include_in_schema=False)
@@ -87,6 +88,7 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
     application.include_router(catalog_router)
     application.include_router(panel_router)
     application.include_router(device_router)
+    application.include_router(assist_router)
     application.include_router(socket_router)
     return application
 

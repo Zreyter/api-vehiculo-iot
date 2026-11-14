@@ -57,7 +57,9 @@ test('un video congelado o un detector lento sueltan la pala y conservan la cám
   let now = 0;
   let focused = true;
   let latency = 0;
-  let position = { gesture: 'Pointing_Up', x: .5, y: .5 };
+  const hands = [[{ x: .5, y: .5 }]];
+  let position = { gesture: 'Pointing_Up', x: .5, y: .5, hands };
+  let overlay;
   const events = [];
   const video = { readyState: 2, currentTime: 0 };
   const camera = new CameraGestureInput({
@@ -66,6 +68,7 @@ test('un video congelado o un detector lento sueltan la pala y conservan la cám
     press: code => { events.push(code); return true; },
     release: () => events.push(0),
     ended: assert.fail,
+    draw: points => { overlay = points; },
     status() {},
   });
   const stream = camera.stream = {};
@@ -77,11 +80,13 @@ test('un video congelado o un detector lento sueltan la pala y conservan la cám
   };
   try {
     camera.sample(stream);
+    assert.equal(overlay, hands);
     position = { ...position, x: .1 };
     frame(65);
     assert.equal(events.at(-1), 1);
     frame(250, false);
     assert.equal(events.at(-1), 0);
+    assert.deepEqual(overlay, []);
     assert.equal(camera.stream, stream);
     frame(65);
     assert.equal(events.at(-1), 0);
@@ -312,5 +317,44 @@ test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', 
     else globalThis.window = originalWindow;
     if (originalDocument === undefined) delete globalThis.document;
     else globalThis.document = originalDocument;
+  }
+});
+
+test('la cámara etiqueta órdenes de excavadora y pala según el estado del envío', () => {
+  const badge = { dataset: {}, textContent: '' };
+  const previousDocument = globalThis.document;
+  globalThis.document = { getElementById: () => badge };
+  const camera = { code: 2 };
+  const actions = [
+    { code: 2, name: 'Avanzar', arrow: '↑' },
+    { code: 4, name: 'Pala derecha', arrow: '→' },
+  ];
+  const state = { active: 0, pending: true, pulse: null };
+  const drive = { controller: { snapshot: () => state }, cameraOrder: null };
+  const panel = { camera, actions, drive };
+  const render = () => AssistPanel.prototype.renderCameraMovement.call(panel);
+  try {
+    render();
+    assert.equal(badge.textContent, 'Enviando · ↑ Avanzar');
+    state.active = 2;
+    state.pending = false;
+    drive.cameraOrder = { codigo: 2, orden_enviada: false };
+    render();
+    assert.equal(badge.textContent, 'Sin envío · ↑ Avanzar');
+    assert.equal(badge.dataset.active, 'false');
+
+    camera.code = state.active = state.pulse = 4;
+    drive.cameraOrder = { codigo: 4, orden_enviada: true };
+    render();
+    assert.equal(badge.textContent, 'Enviado · → Pala derecha');
+    assert.equal(badge.dataset.active, 'true');
+
+    state.pulse = null;
+    state.active = 0;
+    render();
+    assert.equal(badge.textContent, 'Sin movimiento');
+  } finally {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
   }
 });

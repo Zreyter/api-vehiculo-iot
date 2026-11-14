@@ -5,18 +5,21 @@ const $ = id => document.getElementById(id);
 const maxVoicePhraseLength = 240;
 
 export class AssistPanel {
-  constructor(drive) {
+  constructor(drive, actions = []) {
     this.drive = drive;
+    this.actions = actions;
     this.dialog = $('assist-settings');
     this.camera = new CameraGestureInput({
       video: $('gesture-video'),
       detect: video => this.detector.detect(video),
+      draw: hands => this.detector?.draw($('gesture-video'), hands),
       press: (code, source) => drive.press(code, source),
       release: source => drive.releaseInput(source),
       ended: message => { this.show(message); void drive.stop(); },
       status: message => {
         const status = $('gesture-status');
         if (status.textContent !== message) status.textContent = message;
+        this.renderCameraMovement();
       },
     });
     $('listen-voice').onclick = () => this.toggleListening();
@@ -58,6 +61,26 @@ export class AssistPanel {
     const kiwi = $('listen-voice');
     kiwi.setAttribute('aria-pressed', String(voiceActive));
     kiwi.disabled = !voiceActive && (cameraActive || !available);
+    if (this.camera.stream) this.renderCameraMovement();
+  }
+
+  renderCameraMovement() {
+    const badge = $('gesture-movement');
+    const code = this.camera.code;
+    const action = this.actions.find(item => item.code === code);
+    const state = this.drive.controller.snapshot();
+    const active = action && state.active === code && (code !== 4 || state.pulse === code);
+    const result = this.drive.cameraOrder;
+    let label = 'Sin movimiento';
+    if (active && result?.codigo === code) {
+      const status = result.orden_enviada ? 'Enviado' : result.salidas_confirmadas ? 'Confirmado' : 'Sin envío';
+      label = `${status} · ${action.arrow} ${action.name}`;
+    } else if (action && state.pending && !active) {
+      label = `Enviando · ${action.arrow} ${action.name}`;
+    }
+    if (badge.textContent !== label) badge.textContent = label;
+    const sent = String(Boolean(active && (result?.orden_enviada || result?.salidas_confirmadas)));
+    if (badge.dataset.active !== sent) badge.dataset.active = sent;
   }
 
   micStatus(message) {
@@ -158,7 +181,7 @@ export class AssistPanel {
     this.render();
     this.show('Cargando el detector de manos…');
     try {
-      const detector = await createPalmDetector();
+      const detector = await createPalmDetector($('gesture-landmarks'));
       if (request.signal.aborted) { detector.close(); return; }
       this.detector = detector;
       this.show('Autoriza el acceso a la cámara.');
@@ -191,6 +214,7 @@ export class AssistPanel {
     this.cameraRequest?.abort();
     this.cameraRequest = null;
     this.camera.stop();
+    this.drive.cameraOrder = null;
     this.detector?.close();
     this.detector = null;
     $('gesture-help').hidden = true;

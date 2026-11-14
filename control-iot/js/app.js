@@ -14,6 +14,7 @@ class DrivePage {
     this.api = new VehicleApi();
     this.intent = 0;
     this.revision = 0;
+    this.cameraOrder = null;
     this.padInputs = new Set();
     this.stickInputs = new Map();
     this.controller = createController({
@@ -30,7 +31,7 @@ class DrivePage {
       new Joystick($('vehicle-stick'), vehicleDirections, inputs),
       new Joystick($('bucket-stick'), bucketDirections, inputs),
     ];
-    this.assist = new AssistPanel(this);
+    this.assist = new AssistPanel(this, actions);
     $('arm').onclick = () => this.activate();
     $('stop').onclick = () => this.stop();
     $('run-demo').onclick = () => this.execution ? this.stop() : this.runDemo();
@@ -49,6 +50,7 @@ class DrivePage {
     });
     this.api.addEventListener('disconnect', () => {
       this.revision++;
+      this.cameraOrder = null;
       this.commands = null;
       this.assist.cancel();
       if (this.assist.dialog.open) this.assist.dialog.close();
@@ -182,6 +184,8 @@ class DrivePage {
     const result = await this.api.call('entrada', data);
     if (revision !== this.revision || data.intencion !== this.intent || result.cancelado) return result;
     this.lease = result.sesion_activa === true;
+    this.cameraOrder = code && this.assist.camera.stream ? result : null;
+    if (this.assist.camera.stream) this.assist.renderCameraMovement();
     if (result.orden_enviada) this.show(code === 0 ? 'Parada enviada por WebSocket' : 'Orden enviada por WebSocket');
     else if (code && result.recibida) this.show('Orden recibida por la API. ' + (result.mensaje || ''));
     return result;

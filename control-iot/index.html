@@ -100,7 +100,9 @@
       </div>
       <div id="gesture-preview" class="gesture-preview" hidden>
         <video id="gesture-video" playsinline muted aria-label="Vista de la cámara"></video>
+        <canvas id="gesture-landmarks" class="gesture-landmarks" aria-hidden="true"></canvas>
         <div class="gesture-center" aria-hidden="true"></div>
+        <p id="gesture-movement" class="gesture-movement" role="status">Sin movimiento</p>
       </div>
       <p id="gesture-status" class="muted" role="status" hidden></p>
       <p id="voice-status" class="muted" role="status"></p>

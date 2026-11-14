@@ -209,6 +209,28 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
   transform: scaleX(-1);
   border-radius: 8px;
 }
+.control-page .gesture-landmarks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(-1);
+  pointer-events: none;
+}
+.control-page .gesture-movement {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  max-width: calc(100% - 12px);
+  padding: 4px 8px;
+  border-radius: 7px;
+  background: #162c25eb;
+  color: white;
+  font-size: .82rem;
+  font-weight: 650;
+  pointer-events: none;
+}
+.control-page .gesture-movement[data-active="true"] { background: var(--amber); color: #211a0c; }
 .control-page .gesture-center {
   position: absolute;
   inset: 34%;

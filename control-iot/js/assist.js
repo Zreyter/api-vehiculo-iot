@@ -64,8 +64,8 @@ export class PalmGesture {
 
 /** Abre y libera la cámara. El modelo se inyecta como detect(video). */
 export class CameraGestureInput {
-  constructor({ video, detect, press, release, ended, status }) {
-    Object.assign(this, { video, detect, press, release, ended, status });
+  constructor({ video, detect, press, release, ended, status, draw = () => {} }) {
+    Object.assign(this, { video, detect, press, release, ended, status, draw });
     this.gesture = new PalmGesture();
     this.generation = 0;
     this.code = 0;
@@ -130,8 +130,15 @@ export class CameraGestureInput {
         return;
       }
       this.setMovement(this.gesture.update(frame));
-      const mode = this.gesture.mode === 'Open_Palm' ? 'Vehículo' : 'Pala';
-      this.status(this.gesture.centered ? `${mode} · control activo` : 'Centra la mano para comenzar.');
+      this.draw(frame?.hands ?? []);
+      const hands = frame?.hands?.length ?? 0;
+      if (hands > 1) this.status('Muestra una sola mano.');
+      else if (!hands) this.status('Buscando tu mano…');
+      else if (!this.gesture.mode) this.status('Mano detectada. Abre la palma o levanta el índice.');
+      else {
+        const mode = this.gesture.mode === 'Open_Palm' ? 'Excavadora' : 'Pala';
+        this.status(this.gesture.centered ? `Mano detectada · ${mode}` : `Centra la mano · ${mode}`);
+      }
     } catch {
       this.pauseTracking('Seguimiento en pausa. Vuelve a centrar la mano.');
     }
@@ -146,6 +153,7 @@ export class CameraGestureInput {
   pauseTracking(message) {
     this.gesture.update(null);
     this.setMovement(0);
+    this.draw([]);
     this.status(message);
   }
 
@@ -159,6 +167,7 @@ export class CameraGestureInput {
     this.stream = this.video.srcObject = null;
     this.gesture.update(null);
     this.code = 0;
+    this.draw([]);
     if (message) this.ended(message);
   }
 }
@@ -166,23 +175,40 @@ export class CameraGestureInput {
 const visionAssets = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21';
 const palmModel = 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task';
 
-export async function createPalmDetector() {
-  const { FilesetResolver, GestureRecognizer } = await import(visionAssets + '/vision_bundle.mjs');
+export async function createPalmDetector(canvas) {
+  const { DrawingUtils, FilesetResolver, GestureRecognizer } = await import(visionAssets + '/vision_bundle.mjs');
   const vision = await FilesetResolver.forVisionTasks(visionAssets + '/wasm');
   const recognizer = await GestureRecognizer.createFromOptions(vision, {
     baseOptions: { modelAssetPath: palmModel },
     runningMode: 'VIDEO',
     numHands: 2,
   });
+  const context = canvas.getContext('2d');
+  const drawing = context && new DrawingUtils(context);
   return {
     close: () => recognizer.close(),
+    draw(video, hands) {
+      if (!drawing) return;
+      if (hands.length && (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight)) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      const scale = Math.max(1, canvas.width / 420);
+      for (const points of hands) {
+        drawing.drawConnectors(points, GestureRecognizer.HAND_CONNECTIONS,
+          { color: '#5dffc1', lineWidth: 2.5 * scale });
+        drawing.drawLandmarks(points, { color: '#fffdf6', fillColor: '#197650', radius: 3 * scale });
+      }
+    },
     detect(video) {
       const { gestures, landmarks } = recognizer.recognizeForVideo(video, performance.now());
       const gesture = gestures[0]?.[0];
       if (landmarks.length !== 1 || !Object.hasOwn(cameraDirections, gesture?.categoryName) ||
-          gesture.score < .65) return null;
+          gesture.score < .65) return { hands: landmarks };
       const palm = [0, 5, 9, 13, 17].map(index => landmarks[0][index]);
       return {
+        hands: landmarks,
         gesture: gesture.categoryName,
         x: 1 - palm.reduce((sum, point) => sum + point.x, 0) / palm.length,
         y: palm.reduce((sum, point) => sum + point.y, 0) / palm.length,

@@ -24,9 +24,9 @@ class DrivePage {
       fault: error => { this.show(error.message); void this.stop(); },
       notice: message => this.show(message),
     });
-    const inputs = { enabled: () => this.controller.snapshot().armed,
+    const inputs = { enabled: () => this.controller.snapshot().armed && !this.assist?.cameraActive,
       press: (code, source) => this.press(code, source),
-      release: source => this.controller.release(source) };
+      release: source => this.releaseInput(source) };
     this.sticks = [
       new Joystick($('vehicle-stick'), vehicleDirections, inputs),
       new Joystick($('bucket-stick'), bucketDirections, inputs),
@@ -120,20 +120,23 @@ class DrivePage {
 
   render() {
     const armed = this.controller.snapshot().armed;
-    $('arm').disabled = this.busy || !!this.stopping || armed || !!this.execution;
-    $('arm').textContent = armed ? 'Control activo' : 'Activar control';
+    const cameraActive = this.assist?.cameraActive;
+    const manual = armed && !cameraActive;
+    $('arm').disabled = this.busy || !!this.stopping || armed || !!this.execution || cameraActive || !!this.assist?.running;
+    $('arm').textContent = cameraActive ? 'Cámara activa' : armed ? 'Control activo' : 'Activar control';
     $('run-demo').disabled = this.busy || (!this.execution && !$('demo').value);
     $('run-demo').textContent = this.execution ? 'Cancelar demo' : 'Ejecutar demo';
     $('demo').disabled = this.busy || !!this.execution;
     $('open-assist').disabled = !this.commands || this.api.socket?.readyState !== WebSocket.OPEN;
-    for (const stick of this.sticks || []) stick.element.setAttribute('aria-disabled', String(!armed));
+    for (const stick of this.sticks || []) stick.element.setAttribute('aria-disabled', String(!manual));
     document.querySelectorAll('[data-code]').forEach(button => {
-      button.disabled = !armed || !this.commands?.has(Number(button.dataset.code));
+      button.disabled = !manual || !this.commands?.has(Number(button.dataset.code));
     });
     this.assist?.render();
   }
 
-  activate() {
+  activate(source) {
+    if (this.assist.cameraActive && source !== 'camera') return false;
     if (this.busy || this.stopping || !this.commands || this.execution || this.assist.running || document.hidden) return false;
     const armed = this.controller.arm({ commands: this.commands, transport: 'wifi' });
     if (armed) this.show('');
@@ -148,7 +151,7 @@ class DrivePage {
 
   press(code, source) {
     if (code === 0) { void this.stop(); return; }
-    if (this.assist.dialog.open !== (source === 'camera')) return;
+    if (source === 'camera' ? !this.assist.camera.stream : this.assist.cameraActive || this.assist.dialog.open) return;
     if (code === 8) { if (!document.hidden) void this.runDemo(); return; }
     if (document.hidden || !this.controller.press(code, source)) return;
     if (source.startsWith('key:') || source.startsWith('pad:')) {
@@ -158,9 +161,16 @@ class DrivePage {
     return true;
   }
 
+  reflectAssistMovement(code) {
+    if (this.assistedMovement === code) return;
+    this.assistedMovement = code;
+    this.showStickInputs();
+  }
+
   showStickInputs() {
     const commands = Array.from(this.stickInputs.values()).reverse();
-    for (const stick of this.sticks) stick.showInput(commands);
+    if (this.assistedMovement) commands.unshift(this.assistedMovement);
+    for (const stick of this.sticks) stick.showInput(commands, this.assistedMovement);
   }
 
   releaseInput(source) {
@@ -170,6 +180,7 @@ class DrivePage {
 
   resetSticks() {
     this.stickInputs.clear();
+    this.assistedMovement = 0;
     this.showStickInputs();
     for (const stick of this.sticks) stick.clear();
   }
@@ -302,7 +313,10 @@ class DrivePage {
   }
 
   openDialog(id) {
-    if (this.controller.snapshot().armed || this.execution || this.startingDemo) void this.stop();
+    const keepingCamera = id === 'assist-settings' && this.assist.cameraActive;
+    if (!keepingCamera && (this.controller.snapshot().armed || this.execution || this.startingDemo || this.assist.cameraActive)) {
+      void this.stop();
+    }
     $(id).showModal();
     this.render();
   }

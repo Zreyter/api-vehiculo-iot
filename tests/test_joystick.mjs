@@ -5,14 +5,17 @@ import { Joystick, vehicleDirections, bucketDirections } from '../control-iot/js
 test('los joysticks reflejan la última dirección y regresan al centro', () => {
   function createStick(codes) {
     const offsets = new Map();
+    let assisted = false;
     const element = Object.assign(new EventTarget(), {
       querySelector: () => ({ style: { setProperty: (key, value) => offsets.set(key, value) } }),
       getBoundingClientRect: () => ({ width: 200, left: 0, top: 0 }),
       setPointerCapture() {},
+      toggleAttribute(_name, value) { assisted = value; },
     });
     const stick = new Joystick(element, codes, { enabled: () => true, press() {}, release() {} });
     return {
-      show: commands => stick.showInput(commands),
+      show: (commands, code) => stick.showInput(commands, code),
+      assisted: () => assisted,
       position: () => [offsets.get('--stick-x'), offsets.get('--stick-y')],
       pointer: (type, x, y) => element.dispatchEvent(Object.assign(new Event(type), {
         pointerId: 1, button: 0, clientX: x, clientY: y,
@@ -26,6 +29,12 @@ test('los joysticks reflejan la última dirección y regresan al centro', () => 
   assert.deepEqual(vehicle.position(), ['66px', '0px']);
   assert.deepEqual(bucket.position(), ['0px', '-66px']);
 
+  for (const stick of [vehicle, bucket]) stick.show([12], 12);
+  assert.deepEqual(vehicle.position(), ['0px', '0px']);
+  assert.deepEqual(bucket.position(), ['0px', '66px']);
+  assert.equal(vehicle.assisted(), false);
+  assert.equal(bucket.assisted(), true);
+
   vehicle.pointer('pointerdown', 0, 100);
   vehicle.show([3]);
   assert.deepEqual(vehicle.position(), ['-66px', '0px']);
@@ -35,5 +44,6 @@ test('los joysticks reflejan la última dirección y regresan al centro', () => 
   for (const stick of [vehicle, bucket]) {
     stick.show([]);
     assert.deepEqual(stick.position(), ['0px', '0px']);
+    assert.equal(stick.assisted(), false);
   }
 });

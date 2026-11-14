@@ -201,11 +201,35 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
 .control-page .assist-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .control-page .assist-options button[aria-pressed="true"] { background: var(--amber); color: #211a0c; border-color: #daa138; }
 #kiwi-status:empty, #voice-status:empty, #assist-notice:empty { display: none; }
+.control-page .stick[data-assist-input] { opacity: 1; }
+.control-page .stick[data-assist-input] .knob {
+  background: var(--amber);
+  border-color: #80571c;
+}
+.control-page .console:has(.gesture-card:not([hidden])) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas: "toolbar" "camera" "sticks" "actions" "demo";
+}
+.control-page .console:has(.gesture-card:not([hidden])) .toolbar { grid-area: toolbar; }
+.control-page .console:has(.gesture-card:not([hidden])) .stick-grid { grid-area: sticks; }
+.control-page .console:has(.gesture-card:not([hidden])) .actions { grid-area: actions; }
+.control-page .console:has(.gesture-card:not([hidden])) .demo { grid-area: demo; }
+.control-page .gesture-card {
+  grid-area: camera;
+  display: grid;
+  gap: 4px;
+  place-items: center;
+  align-content: center;
+}
+.control-page .gesture-card p { margin: 0; }
+.control-page #gesture-status { min-height: 1.3em; text-align: center; }
+.control-page #gesture-help { display: none; }
 .control-page .gesture-preview { position: relative; width: fit-content; max-width: 100%; margin-inline: auto; }
 .control-page .gesture-preview video {
   display: block;
   max-width: 100%;
-  max-height: min(220px, 36dvh);
+  max-height: min(260px, 27dvh);
   transform: scaleX(-1);
   border-radius: 8px;
 }
@@ -281,4 +305,23 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
   .control-page .header button { min-height: 30px; }
   .control-page .console .card { padding: 4px; }
   .control-page .console button, .control-page .demo select { min-height: 29px; }
+}
+
+@media (min-width: 750px), (orientation: landscape) and (min-width: 480px) {
+  .control-page .console:has(.gesture-card:not([hidden])) {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "toolbar toolbar" "sticks camera" "actions actions" "demo demo";
+  }
+  .control-page .gesture-preview video { max-height: min(290px, 38dvh); }
+}
+@media (min-width: 750px) and (min-height: 560px) {
+  .control-page #gesture-help { display: block; }
+}
+@media (orientation: landscape) and (max-height: 390px) {
+  .control-page .console:has(.gesture-card:not([hidden])) {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "toolbar toolbar" "sticks camera" "actions demo";
+  }
+  .control-page .gesture-preview video { max-height: min(190px, 33dvh); }
 }

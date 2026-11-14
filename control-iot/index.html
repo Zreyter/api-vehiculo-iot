@@ -55,6 +55,20 @@
           <div class="stick-legend"><span>Agarrar</span><span>Girar</span><span>Soltar</span></div>
         </section>
       </div>
+      <section class="card gesture-card" id="gesture-card" aria-label="Cámara de gestos" hidden>
+        <div id="gesture-help" class="muted" hidden>
+          <p><strong>Palma abierta</strong> · Conduce en la dirección de tu mano.</p>
+          <p><strong>Índice levantado</strong> · Izquierda o derecha para girar la pala. Arriba para agarrar, abajo para soltar.</p>
+          <p>Empieza en el centro. Para detenerte, vuelve al centro o cierra la mano.</p>
+        </div>
+        <div id="gesture-preview" class="gesture-preview">
+          <video id="gesture-video" playsinline muted aria-label="Vista de la cámara"></video>
+          <canvas id="gesture-landmarks" class="gesture-landmarks" aria-hidden="true"></canvas>
+          <div class="gesture-center" aria-hidden="true"></div>
+          <p id="gesture-movement" class="gesture-movement" role="status">Sin movimiento</p>
+        </div>
+        <p id="gesture-status" class="muted" role="status"></p>
+      </section>
       <section class="card actions" aria-label="Funciones">
         <div class="button-grid">
           <button type="button" data-code="7">Luz</button><button type="button" data-code="6">Velocidad</button>
@@ -93,18 +107,6 @@
         <button type="button" id="start-camera" aria-pressed="false">Cámara</button>
         <button type="button" id="listen-voice" aria-pressed="false">Kiwi</button>
       </div>
-      <div id="gesture-help" class="muted" hidden>
-        <p><strong>Palma abierta</strong> · Conduce en la dirección de tu mano.</p>
-        <p><strong>Índice levantado</strong> · Izquierda o derecha para girar la pala. Arriba para agarrar, abajo para soltar.</p>
-        <p>Empieza en el centro. Para detenerte, vuelve al centro o cierra la mano.</p>
-      </div>
-      <div id="gesture-preview" class="gesture-preview" hidden>
-        <video id="gesture-video" playsinline muted aria-label="Vista de la cámara"></video>
-        <canvas id="gesture-landmarks" class="gesture-landmarks" aria-hidden="true"></canvas>
-        <div class="gesture-center" aria-hidden="true"></div>
-        <p id="gesture-movement" class="gesture-movement" role="status">Sin movimiento</p>
-      </div>
-      <p id="gesture-status" class="muted" role="status" hidden></p>
       <p id="voice-status" class="muted" role="status"></p>
       <p id="assist-notice" class="notice" role="status"></p>
     </div>

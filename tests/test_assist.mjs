@@ -264,12 +264,13 @@ test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', 
     },
   };
   const calls = [];
+  const reflected = [];
   let resolvePlan;
   let finish;
   const released = new Promise(resolve => { finish = resolve; });
   const drive = {
     canUseAssist: () => true,
-    commands: new Map([[step.codigo, 1]]),
+    commands: new Map([[step.codigo, 1], [11, 2]]),
     api: {
       post(path, body, signal) {
         calls.push([path, body.frase, signal]);
@@ -282,6 +283,7 @@ test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', 
       return { recibida: true, orden_enviada: false };
     },
     show() {},
+    reflectAssistMovement: code => reflected.push(code),
     release() { calls.push(['release']); finish(); },
     stop() { calls.push(['stop']); panel.cancel(); },
   };
@@ -295,12 +297,13 @@ test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', 
     assert.equal(elements.get('kiwi-status').textContent, 'Kiwi activo');
     sessions[0].say('Kiwi, avanza');
     sessions[0].say('Kiwi, ignorar');
-    resolvePlan({ pasos: [step] });
+    resolvePlan({ pasos: [step, { ...step, codigo: 11 }] });
     await released;
     await Promise.resolve();
     assert.deepEqual(calls.map(call => call.slice(0, 2)), [
-      ['/ia/plan', 'avanza'], [2, 100], [0, undefined], ['release'],
+      ['/ia/plan', 'avanza'], [2, 100], [0, undefined], [11, 100], [0, undefined], ['release'],
     ]);
+    assert.deepEqual(reflected, [2, 0, 11, 0, 0]);
     const second = panel.execute('avanza otra vez');
     const signal = calls.at(-1)[2];
     sessions[0].say('Kiwi, para');
@@ -309,8 +312,9 @@ test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', 
     assert.equal(sessions[0].aborted, true);
     assert.equal(elements.get('kiwi-status').textContent, '');
     assert.equal(signal.aborted, true);
-    assert.equal(calls.length, 6);
+    assert.equal(calls.length, 8);
     assert.deepEqual(calls.at(-1), ['stop']);
+    assert.equal(reflected.at(-1), 0);
   } finally {
     panel?.stopListening();
     if (originalWindow === undefined) delete globalThis.window;
@@ -320,21 +324,40 @@ test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', 
   }
 });
 
-test('la cámara etiqueta órdenes de excavadora y pala según el estado del envío', () => {
+test('la cámara conserva el video al cerrar IA y refleja ambos joysticks', () => {
   const badge = { dataset: {}, textContent: '' };
   const previousDocument = globalThis.document;
-  globalThis.document = { getElementById: () => badge };
-  const camera = { code: 2 };
+  const buttons = { setAttribute() {} };
+  const events = new Map();
+  const dialog = { open: true, addEventListener: (name, callback) => events.set(name, callback) };
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'assist-settings') return dialog;
+      if (id === 'gesture-movement') return badge;
+      return buttons;
+    },
+  };
   const actions = [
     { code: 2, name: 'Avanzar', arrow: '↑' },
     { code: 4, name: 'Pala derecha', arrow: '→' },
   ];
   const state = { active: 0, pending: true, pulse: null };
-  const drive = { controller: { snapshot: () => state }, cameraOrder: null };
-  const panel = { camera, actions, drive };
-  const render = () => AssistPanel.prototype.renderCameraMovement.call(panel);
+  const reflected = [];
+  const drive = {
+    controller: { snapshot: () => state },
+    cameraOrder: null,
+    reflectAssistMovement: code => reflected.push(code),
+    stop: assert.fail,
+  };
+  const panel = new AssistPanel(drive, actions);
+  const camera = panel.camera;
+  camera.code = 2;
+  const stream = camera.stream = {};
+  const render = () => panel.renderCameraMovement();
   try {
-    render();
+    dialog.open = false;
+    events.get('close')();
+    assert.equal(camera.stream, stream);
     assert.equal(badge.textContent, 'Enviando · ↑ Avanzar');
     state.active = 2;
     state.pending = false;
@@ -353,6 +376,7 @@ test('la cámara etiqueta órdenes de excavadora y pala según el estado del env
     state.active = 0;
     render();
     assert.equal(badge.textContent, 'Sin movimiento');
+    assert.deepEqual(reflected, [0, 2, 4, 0]);
   } finally {
     if (previousDocument === undefined) delete globalThis.document;
     else globalThis.document = previousDocument;

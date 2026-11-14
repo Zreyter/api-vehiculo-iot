@@ -40,8 +40,7 @@ export class AssistPanel {
     });
     this.dialog.addEventListener('close', () => {
       if (this.dialog.open) return;
-      if (this.camera.stream || this.cameraRequest) void drive.stop();
-      if (this.running) drive.show($('assist-notice').textContent);
+      if (this.running || this.cameraRequest) drive.show($('assist-notice').textContent);
       this.render();
     });
   }
@@ -51,8 +50,10 @@ export class AssistPanel {
     if (!this.dialog.open) this.drive.show(message);
   }
 
+  get cameraActive() { return Boolean(this.camera.stream || this.cameraRequest); }
+
   render() {
-    const cameraActive = Boolean(this.camera.stream || this.cameraRequest);
+    const cameraActive = this.cameraActive;
     const voiceActive = Boolean(this.listener || this.running);
     const available = this.dialog.open && this.drive.canUseAssist();
     const camera = $('start-camera');
@@ -81,6 +82,7 @@ export class AssistPanel {
     if (badge.textContent !== label) badge.textContent = label;
     const sent = String(Boolean(active && (result?.orden_enviada || result?.salidas_confirmadas)));
     if (badge.dataset.active !== sent) badge.dataset.active = sent;
+    this.drive.reflectAssistMovement(active ? code : 0);
   }
 
   micStatus(message) {
@@ -151,12 +153,18 @@ export class AssistPanel {
       this.show('Ejecutando la orden…');
       const { sent, total } = await executeVoicePlan({ pasos }, {
         signal: run.signal,
-        send: (code, duration) => {
-          if (code !== 0) movementRequested = true;
-          return this.drive.send(code, {
+        send: async (code, duration) => {
+          if (code === 0) this.drive.reflectAssistMovement(0);
+          else movementRequested = true;
+          const result = await this.drive.send(code, {
             duration,
             stillWanted: () => !run.signal.aborted && this.drive.canUseAssist(),
           });
+          if (code && this.running === run && !result.cancelado &&
+              (result.recibida || result.orden_enviada || result.salidas_confirmadas)) {
+            this.drive.reflectAssistMovement(code);
+          }
+          return result;
         },
       });
       if (this.running === run) this.show(`Orden completada. Envíos a la placa: ${sent} de ${total}.`);
@@ -164,6 +172,7 @@ export class AssistPanel {
       if (this.running === run) this.show(error.message);
     } finally {
       if (this.running === run) {
+        this.drive.reflectAssistMovement(0);
         try {
           if (movementRequested) await this.drive.release();
         } finally {
@@ -187,12 +196,12 @@ export class AssistPanel {
       this.show('Autoriza el acceso a la cámara.');
       const ready = await this.camera.start();
       if (request.signal.aborted) return;
-      if (!ready || !this.dialog.open || !this.drive.canUseAssist() || !this.drive.activate()) {
+      if (!ready || !this.drive.canUseAssist() || !this.drive.activate('camera')) {
         throw new Error('No se pudo activar el control por cámara.');
       }
+      $('gesture-card').hidden = false;
       $('gesture-help').hidden = false;
-      $('gesture-preview').hidden = false;
-      $('gesture-status').hidden = false;
+      if (this.dialog.open) this.dialog.close();
       this.show('');
       void this.camera.sample(this.camera.stream);
     } catch (error) {
@@ -203,7 +212,7 @@ export class AssistPanel {
       }
     } finally {
       if (this.cameraRequest === request) this.cameraRequest = null;
-      this.render();
+      this.drive.render();
     }
   }
 
@@ -215,11 +224,11 @@ export class AssistPanel {
     this.cameraRequest = null;
     this.camera.stop();
     this.drive.cameraOrder = null;
+    this.drive.reflectAssistMovement(0);
     this.detector?.close();
     this.detector = null;
     $('gesture-help').hidden = true;
-    $('gesture-preview').hidden = true;
-    $('gesture-status').hidden = true;
+    $('gesture-card').hidden = true;
     this.render();
   }
 }

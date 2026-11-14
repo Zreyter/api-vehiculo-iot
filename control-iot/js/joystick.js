@@ -48,8 +48,9 @@ export class Joystick {
     this.knob.style.setProperty('--stick-y', `${y * scale}px`);
   }
 
-  showInput(commands) {
+  showInput(commands, assistedCode) {
     this.inputCode = commands.find(code => this.offsets.has(code));
+    this.element.toggleAttribute('data-assist-input', this.offsets.has(assistedCode));
     if (this.pointer == null) this.showDirection();
   }
 

@@ -266,7 +266,7 @@ test('Kiwi ejecuta desde el panel y Parar descarta respuestas tardías', async (
     commands: new Map([[step.codigo, 1], [11, 2]]),
     api: {
       post(path, body, signal) {
-        calls.push([path, body.frase, signal]);
+        calls.push([path, body.frase, signal, body.codigos_anteriores]);
         return new Promise(resolve => { resolvePlan = resolve; });
       },
     },
@@ -298,6 +298,7 @@ test('Kiwi ejecuta desde el panel y Parar descarta respuestas tardías', async (
     assert.deepEqual(reflected, [2, 0, 11, 0, 0]);
     const second = panel.execute('avanza otra vez');
     const signal = calls.at(-1)[2];
+    assert.deepEqual(calls.at(-1)[3], [2, 11]);
     sessions[0].say('Kiwi, para');
     resolvePlan({ pasos: [step] });
     await second;

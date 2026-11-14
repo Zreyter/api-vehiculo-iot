@@ -18,16 +18,28 @@ class VoicePlanTests(unittest.TestCase):
                             browser_origins=["https://control.example"])
         return TestClient(create_app(settings, MemoryRepository()))
 
-    def provider(self, parts, status="completed"):
+    def provider(self, parts, status="completed", *, phrase="saluda", previous=None, retry=None):
+        responses = iter([parts] if retry is None else [parts, retry])
+
         def reply(request):
             self.assertEqual(str(request.url), "https://api.openai.com/v1/responses")
             self.assertEqual(request.headers["Authorization"], "Bearer fake-key")
             body = json.loads(request.content)
-            self.assertEqual(body["input"], "saluda")
+            self.assertEqual(body["input"], phrase)
+            if previous:
+                codes = ", ".join(map(str, previous))
+                self.assertIn(f"códigos en orden: {codes}.", body["instructions"])
             self.assertFalse(body["store"])
             self.assertTrue(body["text"]["format"]["strict"])
+            response_parts = []
+            for part in next(responses):
+                if part["type"] == "output_text":
+                    plan = json.loads(part["text"])
+                    plan.setdefault("tipo", "orden_concreta")
+                    part = {**part, "text": json.dumps(plan)}
+                response_parts.append(part)
             return httpx.Response(200, json={"status": status, "output": [
-                {"type": "message", "content": parts},
+                {"type": "message", "content": response_parts},
             ]})
 
         return patch("app.api.assist_routes.httpx.AsyncClient", return_value=httpx.AsyncClient(
@@ -70,3 +82,40 @@ class VoicePlanTests(unittest.TestCase):
             with self.provider([{"type": "refusal", "refusal": "No disponible."}]):
                 response = client.post("/ia/plan", headers=self.headers, json={"frase": "saluda"})
                 self.assertEqual(response.status_code, 422)
+
+    def test_plan_passes_previous_codes_as_context_and_preserves_operator_input(self):
+        phrase = "Muéstrame los cuatro movimientos de la pala"
+        previous = [4, 1, 12, 11]
+        plan = {"pasos": [
+            {"codigo": code, "duracion_ms": 250, "pausa_ms": 150}
+            for code in [1, 4, 11, 12]
+        ]}
+        parts = [{"type": "output_text", "text": json.dumps(plan)}]
+        with self.client("fake-key") as client, self.provider(parts, phrase=phrase, previous=previous):
+            response = client.post("/ia/plan", headers=self.headers,
+                                   json={"frase": phrase, "codigos_anteriores": previous})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), plan)
+            response = client.post("/ia/plan", headers=self.headers,
+                                   json={"frase": phrase, "codigos_anteriores": [9]})
+            self.assertEqual(response.status_code, 422)
+
+    def test_repeated_creative_plan_is_regenerated(self):
+        phrase = "Baila"
+        previous = [2, 10, 4, 3, 11, 12]
+        replacement = [11, 2, 13, 3, 12, 1]
+
+        def output(codes):
+            return [{"type": "output_text", "text": json.dumps({
+                "tipo": "rutina_abierta",
+                "pasos": [{"codigo": code, "duracion_ms": 250, "pausa_ms": 150} for code in codes],
+            })}]
+
+        with self.client("fake-key") as client, self.provider(
+            output(previous), phrase=phrase, previous=previous, retry=output(replacement),
+        ):
+            response = client.post("/ia/plan", headers=self.headers,
+                                   json={"frase": phrase, "codigos_anteriores": previous})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual([step["codigo"] for step in response.json()["pasos"]], replacement)
+            self.assertNotIn("tipo", response.json())

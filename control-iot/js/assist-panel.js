@@ -129,12 +129,15 @@ export class AssistPanel {
     this.show('Interpretando la orden…');
     let movementRequested = false;
     try {
-      const plan = await this.drive.api.post('/ia/plan', { frase }, run.signal);
+      const plan = await this.drive.api.post('/ia/plan', {
+        frase, codigos_anteriores: this.lastVoiceCodes,
+      }, run.signal);
       if (this.running !== run || !this.drive.canUseAssist()) return;
       const pasos = validateVoicePlan(plan);
       if (!pasos.every(step => this.drive.commands.has(step.codigo))) {
         throw new Error('La orden incluye movimientos que no están disponibles.');
       }
+      this.lastVoiceCodes = pasos.map(step => step.codigo);
       this.show('Ejecutando la orden…');
       const { sent, total } = await executeVoicePlan({ pasos }, {
         signal: run.signal,

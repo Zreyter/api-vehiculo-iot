@@ -102,8 +102,7 @@ class ControlConnection:
         if (code == 9 and order.pulso_ms not in (200, 2000)) or (code != 9 and order.pulso_ms is not None):
             raise ServiceError(422, "El código 9 requiere un pulso de 200 o 2000 ms.")
         duration = order.duracion_ms
-        if duration is not None and (code not in (1, 2, 3, 4, 10, 11, 12, 13)
-                                     or (code == 4 and duration != 200)):
+        if duration is not None and code not in (1, 2, 3, 4, 10, 11, 12, 13):
             raise ServiceError(422, "Duración incompatible con el movimiento.")
         if self.closed or intent <= self.input_intent:
             return {"cancelado": True}
@@ -115,8 +114,11 @@ class ControlConnection:
         def current():
             return not self.closed and generation == self.input_generation and intent == self.input_intent
 
+        # El toque manual de la pala derecha conserva su duración predeterminada.
+        movement_ms = 200 if code == 4 and duration is None else duration
+
         async def without_device(message):
-            pulse = order.pulso_ms or duration or (200 if 4 <= code <= 8 else 0)
+            pulse = order.pulso_ms or movement_ms or (200 if 5 <= code <= 8 else 0)
             return await self.received_without_forwarding(code, intent, pulse, message, current)
 
         if code and not self.lease:
@@ -145,7 +147,7 @@ class ControlConnection:
             return await without_device("Sin una sesión física activa.")
         try:
             result = await self.device.command(vehicle, key, code, intent=intent,
-                                               pulso_ms=order.pulso_ms, demo_ms=200 if code == 4 else duration)
+                                               pulso_ms=order.pulso_ms, demo_ms=movement_ms)
         except (ServiceError, TimeoutError, OSError, RuntimeError) as exc:
             if not current():
                 return {"cancelado": True}

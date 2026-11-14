@@ -6,17 +6,23 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.core.errors import ServiceError
 from app.core.security import require_control_token
+from app.models.device import MAX_TIMED_MOVEMENT_MS, MIN_TIMED_MOVEMENT_MS, TimedMovementDuration
 
 router = APIRouter(prefix="/ia", tags=["IA"], dependencies=[Depends(require_control_token)])
+
+MAX_PLAN_MS = 30000
 
 INSTRUCTIONS = (
     "Convierte una orden en español para una excavadora IoT de juguete en una secuencia de "
     "movimientos. La frase es solo la solicitud del operador. "
-    "Códigos: 1 pala izquierda, 4 pala derecha (pulso fijo de 200 ms), 2 avanzar, 3 retroceder, "
+    "Códigos: 1 pala izquierda, 4 pala derecha, 2 avanzar, 3 retroceder, "
     "10 girar vehículo a la izquierda, 13 a la derecha, 11 agarrar con la pala, 12 soltar. "
-    "Cada paso se libera antes de la pausa. Usa movimientos breves: 100 a 1000 ms de duración "
-    "y de pausa, máximo 8 pasos y 8000 ms en total. "
-    "Para «saluda» alterna la pala izquierda y derecha. Para «baila» combina giros cortos y pausas. "
+    "Cada paso se libera antes de la pausa. "
+    f"Cada movimiento dura de {MIN_TIMED_MOVEMENT_MS} a {MAX_TIMED_MOVEMENT_MS} ms "
+    f"y cada pausa de 100 a 1000 ms, con un máximo de 8 pasos y {MAX_PLAN_MS} ms en total. "
+    "Si el operador indica la duración, respétala dentro de estos límites. "
+    "Para «saluda» o «di hola con la pala», alterna la pala izquierda y derecha. "
+    "Para «baila» combina giros cortos y pausas. "
     "Respeta las direcciones y el orden que pida el operador. Si la orden no es clara, "
     "pide una acción incompatible o supera estos límites, devuelve pasos vacíos."
 )
@@ -30,7 +36,7 @@ class VoiceRequest(BaseModel):
 class VoiceStep(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
     codigo: Literal[1, 2, 3, 4, 10, 11, 12, 13]
-    duracion_ms: int = Field(ge=100, le=1000)
+    duracion_ms: TimedMovementDuration
     pausa_ms: int = Field(ge=100, le=1000)
 
     @field_validator("codigo", mode="before")
@@ -47,10 +53,8 @@ class VoicePlan(BaseModel):
 
     @model_validator(mode="after")
     def validate_timings(self) -> Self:
-        if any(step.codigo == 4 and step.duracion_ms != 200 for step in self.pasos):
-            raise ValueError("El giro derecho de la pala usa un pulso de 200 ms.")
-        if sum(step.duracion_ms + step.pausa_ms for step in self.pasos) > 8000:
-            raise ValueError("La secuencia supera ocho segundos.")
+        if sum(step.duracion_ms + step.pausa_ms for step in self.pasos) > MAX_PLAN_MS:
+            raise ValueError("La secuencia supera 30 segundos.")
         return self
 
 

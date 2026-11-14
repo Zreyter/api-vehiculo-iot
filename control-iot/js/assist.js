@@ -12,14 +12,14 @@ export function validateVoicePlan(plan) {
   const pasos = plan.pasos.map(step => {
     const { codigo, duracion_ms, pausa_ms } = step || {};
     if (!movementCodes.has(codigo) || !Number.isInteger(duracion_ms) || duracion_ms < 100 ||
-        duracion_ms > 1000 || (codigo === 4 && duracion_ms !== 200) ||
+        duracion_ms > 5000 ||
         !Number.isInteger(pausa_ms) || pausa_ms < 100 || pausa_ms > 1000) {
       throw new Error('El plan contiene un movimiento o duración fuera del contrato.');
     }
     total += duracion_ms + pausa_ms;
     return { codigo, duracion_ms, pausa_ms };
   });
-  if (total > 8000) throw new Error('La secuencia supera ocho segundos.');
+  if (total > 30000) throw new Error('La secuencia supera 30 segundos.');
   return pasos;
 }
 

@@ -20,21 +20,23 @@ test('la mano solo conduce después de pasar por el centro con la palma abierta'
 
 test('se rechazan códigos de función, booleanos, pulsos inválidos y secuencias largas', () => {
   assert.deepEqual(validateVoicePlan({ pasos: [step] }), [step]);
-  for (const codigo of [0, 4, 9, 14, true]) {
+  for (const codigo of [0, 9, 14, true]) {
     assert.throws(() => validateVoicePlan({ pasos: [{ ...step, codigo }] }));
   }
-  const long = { ...step, duracion_ms: 1000, pausa_ms: 1000 };
-  assert.throws(() => validateVoicePlan({ pasos: Array(5).fill(long) }));
+  const long = { ...step, codigo: 4, duracion_ms: 5000, pausa_ms: 1000 };
+  assert.deepEqual(validateVoicePlan({ pasos: Array(5).fill(long) }), Array(5).fill(long));
+  assert.throws(() => validateVoicePlan({ pasos: Array(6).fill(long) }));
+  assert.throws(() => validateVoicePlan({ pasos: [{ ...long, duracion_ms: 5001 }] }));
 });
 
 test('la ejecución libera salidas entre pasos y conserva la duración solicitada', async () => {
   const calls = [];
-  await executeVoicePlan({ pasos: [step, { ...step, codigo: 3 }] }, {
+  await executeVoicePlan({ pasos: [step, { ...step, codigo: 4, duracion_ms: 250 }] }, {
     signal: new AbortController().signal,
     onStep() {},
     send(...order) { calls.push(order); return { orden_enviada: true, sesion_activa: true }; },
   });
-  assert.deepEqual(calls, [[2, 100], [0], [3, 100], [0]]);
+  assert.deepEqual(calls, [[2, 100], [0], [4, 250], [0]]);
 });
 
 test('una secuencia continúa si la API recibe las órdenes sin placa', async () => {

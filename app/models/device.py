@@ -1,4 +1,12 @@
+from typing import Annotated
+
 from pydantic import BaseModel, ConfigDict, Field
+
+MIN_TIMED_MOVEMENT_MS = 100
+MAX_TIMED_MOVEMENT_MS = 5000
+TimedMovementDuration = Annotated[
+    int, Field(ge=MIN_TIMED_MOVEMENT_MS, le=MAX_TIMED_MOVEMENT_MS, strict=True)
+]
 
 
 class ControlLease(BaseModel):
@@ -14,7 +22,7 @@ class ControlInput(BaseModel):
 
 
 class TimedControlInput(ControlInput):
-    duracion_ms: int | None = Field(default=None, ge=100, le=1000, strict=True)
+    duracion_ms: TimedMovementDuration | None = None
 
 
 class DeviceCommand(ControlLease, ControlInput):

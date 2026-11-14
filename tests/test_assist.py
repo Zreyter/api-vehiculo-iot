@@ -43,7 +43,7 @@ class VoicePlanTests(unittest.TestCase):
                                          json={"frase": " "}).status_code, 422)
 
     def test_preflight_and_valid_model_response(self):
-        plan = {"pasos": [{"codigo": 4, "duracion_ms": 200, "pausa_ms": 300}]}
+        plan = {"pasos": [{"codigo": 4, "duracion_ms": 5000, "pausa_ms": 300}]}
         with self.client("fake-key") as client, self.provider([{"type": "output_text", "text": json.dumps(plan)}]):
             preflight = client.options("/ia/plan", headers={
                 "origin": "https://control.example", "access-control-request-method": "POST",
@@ -59,8 +59,8 @@ class VoicePlanTests(unittest.TestCase):
             ({"pasos": []}, 422),
             ({"pasos": [{"codigo": True, "duracion_ms": 200, "pausa_ms": 300}]}, 502),
             ({"pasos": [{"codigo": 9, "duracion_ms": 200, "pausa_ms": 300}]}, 502),
-            ({"pasos": [{"codigo": 4, "duracion_ms": 350, "pausa_ms": 300}]}, 502),
-            ({"pasos": [{"codigo": 2, "duracion_ms": 1000, "pausa_ms": 1000}] * 5}, 502),
+            ({"pasos": [{"codigo": 4, "duracion_ms": 5001, "pausa_ms": 300}]}, 502),
+            ({"pasos": [{"codigo": 2, "duracion_ms": 5000, "pausa_ms": 1000}] * 6}, 502),
         ]
         with self.client("fake-key") as client:
             for plan, status in plans:

@@ -1,7 +1,9 @@
-import { direction, vehicleDirections } from './joystick.js';
+import { bucketDirections, direction, vehicleDirections } from './joystick.js';
 
 const movementCodes = new Set([1, 2, 3, 4, 10, 11, 12, 13]);
-const detectorTimeout = Symbol('detectorTimeout');
+const cameraFrameInterval = 65;
+const cameraFrameTimeout = 250;
+const cameraDirections = { Open_Palm: vehicleDirections, Pointing_Up: bucketDirections };
 
 /** El proveedor de voz entrega datos; el controlador conserva la autoridad sobre los movimientos. */
 export function validateVoicePlan(plan) {
@@ -23,34 +25,38 @@ export function validateVoicePlan(plan) {
   return pasos;
 }
 
-/**
- * El proveedor de visión devuelve {abierta, x, y}, en coordenadas 0–1 del
- * video visible. Para arrancar exige palma abierta en el centro.
- */
+/** Exige centrar la mano al iniciar, recuperar el seguimiento o cambiar de gesto. */
 export class PalmGesture {
   update(sample) {
-    const { abierta, x, y } = sample || {};
-    if (!abierta || !Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) {
+    const { gesture, x, y } = sample || {};
+    if (!Object.hasOwn(cameraDirections, gesture) || !Number.isFinite(x) || !Number.isFinite(y) ||
+        x < 0 || x > 1 || y < 0 || y > 1) {
+      this.mode = null;
+      this.centered = false;
+      return this.previous = 0;
+    }
+    if (this.mode !== gesture) {
+      this.mode = gesture;
       this.centered = false;
       this.previous = 0;
-      return 0;
     }
     const dx = x * 2 - 1;
     const dy = y * 2 - 1;
-    if (Math.hypot(dx, dy) <= .28) this.centered = true;
-    const code = this.centered ? direction(dx, dy, vehicleDirections, .6) : 0;
-    if (this.previous && !code) this.centered = Math.hypot(dx, dy) <= .28;
-    this.previous = code;
-    return code;
+    const inCenter = Math.hypot(dx, dy) <= .28;
+    if (inCenter) this.centered = true;
+    const code = this.centered ? direction(dx, dy, cameraDirections[gesture], .6) : 0;
+    if (this.previous && !code) this.centered = inCenter;
+    return this.previous = code;
   }
 }
 
 /** Abre y libera la cámara. El modelo se inyecta como detect(video). */
 export class CameraGestureInput {
-  constructor({ video, detect, press, release, ended }) {
-    Object.assign(this, { video, detect, press, release, ended });
+  constructor({ video, detect, press, release, ended, status }) {
+    Object.assign(this, { video, detect, press, release, ended, status });
     this.gesture = new PalmGesture();
     this.generation = 0;
+    this.code = 0;
   }
 
   async start() {
@@ -76,50 +82,64 @@ export class CameraGestureInput {
       if (generation === this.generation) {
         this.lastVideoTime = -1;
         this.lastFrameAt = performance.now();
+        this.nextSampleAt = this.lastFrameAt;
         return true;
       }
     } catch (error) {
       if (generation !== this.generation) return;
       this.stop();
       throw error;
-    } finally { this.starting = false; }
+    } finally { if (generation === this.generation) this.starting = false; }
   }
 
-  async sample(stream) {
+  sample(stream) {
     if (this.stream !== stream) return;
     if (document.hidden) return this.stop();
-    const start = performance.now();
-    if (start - this.lastFrameAt > 250) return this.stop('Se interrumpió el video de la cámara.');
-    if (this.video.currentTime === this.lastVideoTime || start - this.lastFrameAt < 65 ||
-        this.video.readyState < 2) {
-      this.frame = requestAnimationFrame(() => this.sample(stream));
+    this.frame = requestAnimationFrame(() => this.sample(stream));
+    if (!document.hasFocus()) {
+      this.pauseTracking('Control en pausa. Regresa al panel y centra la mano.');
       return;
     }
+
+    const now = performance.now();
+    if (now - this.lastFrameAt >= cameraFrameTimeout) {
+      this.pauseTracking('Seguimiento en pausa. Centra la mano cuando vuelva el video.');
+    }
+    if (this.video.currentTime === this.lastVideoTime || now < this.nextSampleAt ||
+        this.video.readyState < 2) return;
+
     this.lastVideoTime = this.video.currentTime;
-    this.lastFrameAt = start;
-    let timer;
+    this.nextSampleAt = now + cameraFrameInterval;
     try {
-      const frame = await Promise.race([
-        this.detect(this.video),
-        new Promise(resolve => { timer = setTimeout(() => resolve(detectorTimeout), 250); }),
-      ]);
-      if (this.stream !== stream) return;
-      if (frame === detectorTimeout || performance.now() - start >= 250) {
-        return this.stop('El seguimiento de la mano se interrumpió.');
+      const frame = this.detect(this.video);
+      this.lastFrameAt = performance.now();
+      if (this.lastFrameAt - now >= cameraFrameTimeout) {
+        this.pauseTracking('Seguimiento lento. Vuelve a centrar la mano.');
+        return;
       }
-      const code = this.gesture.update(frame);
-      if (this.code !== code) {
-        this.release('camera');
-        this.code = code;
-        if (code) this.press(code, 'camera');
-      }
-      this.frame = requestAnimationFrame(() => this.sample(stream));
-    } catch { this.stop('No se pudo seguir la mano.'); }
-    finally { clearTimeout(timer); }
+      this.setMovement(this.gesture.update(frame));
+      const mode = this.gesture.mode === 'Open_Palm' ? 'Vehículo' : 'Pala';
+      this.status(this.gesture.centered ? `${mode} · control activo` : 'Centra la mano para comenzar.');
+    } catch {
+      this.pauseTracking('Seguimiento en pausa. Vuelve a centrar la mano.');
+    }
+  }
+
+  setMovement(code) {
+    if (this.code === code) return;
+    if (this.code) this.release('camera');
+    this.code = code && this.press(code, 'camera') ? code : 0;
+  }
+
+  pauseTracking(message) {
+    this.gesture.update(null);
+    this.setMovement(0);
+    this.status(message);
   }
 
   stop(message) {
     this.generation++;
+    this.starting = false;
     this.visibility?.abort();
     cancelAnimationFrame(this.frame);
     this.release('camera');
@@ -147,10 +167,11 @@ export async function createPalmDetector() {
     detect(video) {
       const { gestures, landmarks } = recognizer.recognizeForVideo(video, performance.now());
       const gesture = gestures[0]?.[0];
-      if (landmarks.length !== 1 || gesture?.categoryName !== 'Open_Palm' || gesture.score < .65) return null;
+      if (landmarks.length !== 1 || !Object.hasOwn(cameraDirections, gesture?.categoryName) ||
+          gesture.score < .65) return null;
       const palm = [0, 5, 9, 13, 17].map(index => landmarks[0][index]);
       return {
-        abierta: true,
+        gesture: gesture.categoryName,
         x: 1 - palm.reduce((sum, point) => sum + point.x, 0) / palm.length,
         y: palm.reduce((sum, point) => sum + point.y, 0) / palm.length,
       };

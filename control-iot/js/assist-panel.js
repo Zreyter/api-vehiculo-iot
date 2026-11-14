@@ -14,6 +14,10 @@ export class AssistPanel {
       press: (code, source) => drive.press(code, source),
       release: source => drive.releaseInput(source),
       ended: message => { this.show(message); void drive.stop(); },
+      status: message => {
+        const status = $('gesture-status');
+        if (status.textContent !== message) status.textContent = message;
+      },
     });
     $('listen-voice').onclick = () => this.toggleListening();
     $('start-camera').onclick = () => {
@@ -165,6 +169,7 @@ export class AssistPanel {
       }
       $('gesture-help').hidden = false;
       $('gesture-preview').hidden = false;
+      $('gesture-status').hidden = false;
       this.show('');
       void this.camera.sample(this.camera.stream);
     } catch (error) {
@@ -190,6 +195,7 @@ export class AssistPanel {
     this.detector = null;
     $('gesture-help').hidden = true;
     $('gesture-preview').hidden = true;
+    $('gesture-status').hidden = true;
     this.render();
   }
 }

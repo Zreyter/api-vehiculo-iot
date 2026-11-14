@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { executeVoicePlan, PalmGesture, validateVoicePlan } from '../control-iot/js/assist.js';
+import { CameraGestureInput, executeVoicePlan, PalmGesture, validateVoicePlan } from '../control-iot/js/assist.js';
 import { AssistPanel } from '../control-iot/js/assist-panel.js';
 import { KiwiListener } from '../control-iot/js/voice.js';
 
@@ -8,7 +8,7 @@ const step = { codigo: 2, duracion_ms: 100, pausa_ms: 100 };
 
 test('la mano solo conduce después de pasar por el centro con la palma abierta', () => {
   const gesture = new PalmGesture();
-  const palm = (x, y) => gesture.update({ abierta: true, x, y });
+  const palm = (x, y) => gesture.update({ gesture: 'Open_Palm', x, y });
   assert.equal(palm(.95, .5), 0);
   assert.equal(palm(.5, .5), 0);
   assert.equal(palm(.95, .5), 13);
@@ -18,6 +18,87 @@ test('la mano solo conduce después de pasar por el centro con la palma abierta'
   assert.equal(palm(.5, .1), 2);
   assert.equal(gesture.update(null), 0);
   assert.equal(palm(.5, .1), 0);
+});
+
+test('el índice centrado controla la pala y el cambio de gesto libera el movimiento', () => {
+  const gesture = new PalmGesture();
+  const hand = (mode, x, y) => gesture.update({ gesture: mode, x, y });
+  assert.equal(hand('Open_Palm', .5, .5), 0);
+  assert.equal(hand('Open_Palm', .5, .1), 2);
+  assert.equal(hand('Pointing_Up', .5, .1), 0);
+  for (const [x, y, code] of [[.1, .5, 1], [.9, .5, 4], [.5, .1, 11], [.5, .9, 12]]) {
+    assert.equal(hand('Pointing_Up', .5, .5), 0);
+    assert.equal(hand('Pointing_Up', x, y), code);
+  }
+  assert.equal(hand('Closed_Fist', .5, .9), 0);
+  assert.equal(hand('Pointing_Up', .5, .9), 0);
+});
+
+test('un video congelado o un detector lento sueltan la pala y conservan la cámara', t => {
+  t.mock.method(performance, 'now', () => now);
+  const originalDocument = globalThis.document;
+  const originalFrame = globalThis.requestAnimationFrame;
+  let nextFrame;
+  globalThis.document = { hidden: false, hasFocus: () => focused };
+  globalThis.requestAnimationFrame = run => { nextFrame = run; };
+  let now = 0;
+  let focused = true;
+  let latency = 0;
+  let position = { gesture: 'Pointing_Up', x: .5, y: .5 };
+  const events = [];
+  const video = { readyState: 2, currentTime: 0 };
+  const camera = new CameraGestureInput({
+    video,
+    detect: () => { now += latency; return position; },
+    press: code => { events.push(code); return true; },
+    release: () => events.push(0),
+    ended: assert.fail,
+    status() {},
+  });
+  const stream = camera.stream = {};
+  camera.lastFrameAt = camera.nextSampleAt = now;
+  const frame = (elapsed, newFrame = true) => {
+    now += elapsed;
+    if (newFrame) video.currentTime++;
+    nextFrame();
+  };
+  try {
+    camera.sample(stream);
+    position = { ...position, x: .1 };
+    frame(65);
+    assert.equal(events.at(-1), 1);
+    frame(250, false);
+    assert.equal(events.at(-1), 0);
+    assert.equal(camera.stream, stream);
+    frame(65);
+    assert.equal(events.at(-1), 0);
+    position = { ...position, x: .5 };
+    frame(65);
+    position = { ...position, x: .1 };
+    frame(65);
+    assert.equal(events.at(-1), 1);
+    latency = 250;
+    frame(65);
+    assert.equal(events.at(-1), 0);
+    assert.equal(camera.stream, stream);
+    latency = 0;
+    frame(65);
+    assert.equal(events.at(-1), 0);
+    position = { ...position, x: .5 };
+    frame(65);
+    position = { ...position, x: .1 };
+    frame(65);
+    assert.equal(events.at(-1), 1);
+    focused = false;
+    frame(65);
+    assert.equal(events.at(-1), 0);
+    assert.equal(camera.stream, stream);
+  } finally {
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+    if (originalFrame === undefined) delete globalThis.requestAnimationFrame;
+    else globalThis.requestAnimationFrame = originalFrame;
+  }
 });
 
 test('se rechazan códigos de función, booleanos, pulsos inválidos y secuencias largas', () => {

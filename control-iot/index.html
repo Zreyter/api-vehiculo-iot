@@ -93,11 +93,16 @@
         <button type="button" id="start-camera" aria-pressed="false">Cámara</button>
         <button type="button" id="listen-voice" aria-pressed="false">Kiwi</button>
       </div>
-      <p id="gesture-help" class="muted" hidden>Abre la palma en el centro y muévela hacia un borde. Para detenerte, vuelve al centro o cierra la mano.</p>
+      <div id="gesture-help" class="muted" hidden>
+        <p><strong>Palma abierta</strong> · Conduce en la dirección de tu mano.</p>
+        <p><strong>Índice levantado</strong> · Izquierda o derecha para girar la pala. Arriba para agarrar, abajo para soltar.</p>
+        <p>Empieza en el centro. Para detenerte, vuelve al centro o cierra la mano.</p>
+      </div>
       <div id="gesture-preview" class="gesture-preview" hidden>
         <video id="gesture-video" playsinline muted aria-label="Vista de la cámara"></video>
         <div class="gesture-center" aria-hidden="true"></div>
       </div>
+      <p id="gesture-status" class="muted" role="status" hidden></p>
       <p id="voice-status" class="muted" role="status"></p>
       <p id="assist-notice" class="notice" role="status"></p>
     </div>

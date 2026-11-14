@@ -153,6 +153,7 @@ class DrivePage {
       this.stickInputs.set(source, code);
       this.showStickInputs();
     }
+    return true;
   }
 
   showStickInputs() {
@@ -315,6 +316,10 @@ class DrivePage {
     window.addEventListener('keyup', event => this.releaseInput('key:' + event.code));
     document.addEventListener('visibilitychange', () => { if (document.hidden) void this.stop(); });
     window.addEventListener('blur', () => {
+      if (this.assist.camera.stream || this.assist.cameraRequest) {
+        this.assist.camera.pauseTracking('Control en pausa. Regresa al panel y centra la mano.');
+        return;
+      }
       if (this.controller.snapshot().armed || this.execution || this.startingDemo || this.assist.running || this.assist.listener) void this.stop();
     });
     window.addEventListener('pagehide', () => { this.assist.cancel(); this.api.close(); });

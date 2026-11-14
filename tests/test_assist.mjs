@@ -143,20 +143,31 @@ test('el micrófono se rearma cuando el navegador termina un ciclo de escucha', 
   }
 });
 
-test('una orden se planifica y ejecuta una sola vez y Parar descarta respuestas tardías', async () => {
+test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', async () => {
   const elements = new Map();
   const originalDocument = globalThis.document;
+  const originalWindow = globalThis.window;
+  const { Speech, sessions } = mockSpeech();
+  globalThis.window = { SpeechRecognition: Speech };
   globalThis.document = {
     hidden: false,
     getElementById(id) {
       if (!elements.has(id)) {
-        elements.set(id, { open: true, setAttribute() {}, addEventListener() {} });
+        const handlers = new Map();
+        elements.set(id, {
+          open: true,
+          setAttribute() {},
+          addEventListener(event, handler) { handlers.set(event, handler); },
+          close() { this.open = false; handlers.get('close')?.(); },
+        });
       }
       return elements.get(id);
     },
   };
   const calls = [];
   let resolvePlan;
+  let finish;
+  const released = new Promise(resolve => { finish = resolve; });
   const drive = {
     canUseAssist: () => true,
     commands: new Map([[step.codigo, 1]]),
@@ -167,32 +178,44 @@ test('una orden se planifica y ejecuta una sola vez y Parar descarta respuestas 
       },
     },
     send(code, options) {
+      assert.equal(options.stillWanted(), true);
       calls.push([code, options.duration]);
       return { recibida: true, orden_enviada: false };
     },
-    release() { calls.push(['release']); },
+    show() {},
+    release() { calls.push(['release']); finish(); },
     stop() { calls.push(['stop']); panel.cancel(); },
   };
   let panel;
   try {
     panel = new AssistPanel(drive);
     panel.camera.stop = () => {};
-    const first = panel.execute('avanza');
-    await panel.execute('ignorar');
+    elements.get('listen-voice').onclick();
+    panel.dialog.close();
+    assert.equal(sessions[0].aborted, undefined);
+    assert.equal(elements.get('kiwi-status').textContent, 'Kiwi activo');
+    sessions[0].say('Kiwi, avanza');
+    sessions[0].say('Kiwi, ignorar');
     resolvePlan({ pasos: [step] });
-    await first;
+    await released;
+    await Promise.resolve();
     assert.deepEqual(calls.map(call => call.slice(0, 2)), [
       ['/ia/plan', 'avanza'], [2, 100], [0, undefined], ['release'],
     ]);
     const second = panel.execute('avanza otra vez');
     const signal = calls.at(-1)[2];
-    elements.get('listen-voice').onclick();
+    sessions[0].say('Kiwi, para');
     resolvePlan({ pasos: [step] });
     await second;
+    assert.equal(sessions[0].aborted, true);
+    assert.equal(elements.get('kiwi-status').textContent, '');
     assert.equal(signal.aborted, true);
     assert.equal(calls.length, 6);
     assert.deepEqual(calls.at(-1), ['stop']);
   } finally {
+    panel?.stopListening();
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
     if (originalDocument === undefined) delete globalThis.document;
     else globalThis.document = originalDocument;
   }

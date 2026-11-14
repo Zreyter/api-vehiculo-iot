@@ -200,7 +200,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
 .control-page .binding-grid select { min-width: 0; }
 .control-page .assist-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .control-page .assist-options button[aria-pressed="true"] { background: var(--amber); color: #211a0c; border-color: #daa138; }
-#voice-status:empty, #assist-notice:empty { display: none; }
+#kiwi-status:empty, #voice-status:empty, #assist-notice:empty { display: none; }
 .control-page .gesture-preview { position: relative; width: fit-content; max-width: 100%; margin-inline: auto; }
 .control-page .gesture-preview video {
   display: block;

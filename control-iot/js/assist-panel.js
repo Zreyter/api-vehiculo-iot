@@ -32,17 +32,22 @@ export class AssistPanel {
       }
     });
     this.dialog.addEventListener('close', () => {
-      if (this.running || this.camera.stream || drive.controller.snapshot().armed) void drive.stop();
-      else this.cancel();
+      if (this.dialog.open) return;
+      if (this.camera.stream || this.cameraRequest) void drive.stop();
+      if (this.running) drive.show($('assist-notice').textContent);
+      this.render();
     });
   }
 
-  show(message) { $('assist-notice').textContent = message; }
+  show(message) {
+    $('assist-notice').textContent = message;
+    if (!this.dialog.open) this.drive.show(message);
+  }
 
   render() {
     const cameraActive = Boolean(this.camera.stream || this.cameraRequest);
     const voiceActive = Boolean(this.listener || this.running);
-    const available = this.drive.canUseAssist();
+    const available = this.dialog.open && this.drive.canUseAssist();
     const camera = $('start-camera');
     camera.setAttribute('aria-pressed', String(cameraActive));
     camera.disabled = !cameraActive && (voiceActive || !available);
@@ -51,7 +56,12 @@ export class AssistPanel {
     kiwi.disabled = !voiceActive && (cameraActive || !available);
   }
 
-  micStatus(message) { $('voice-status').textContent = message; }
+  micStatus(message) {
+    $('voice-status').textContent = message;
+    $('kiwi-status').textContent = this.listener
+      ? (this.listener.waiting ? 'Kiwi · Te escucho…' : 'Kiwi activo')
+      : '';
+  }
 
   toggleListening() {
     if (this.listener || this.running) {
@@ -59,22 +69,29 @@ export class AssistPanel {
       void this.drive.stop();
       return;
     }
-    if (!this.drive.canUseAssist() || this.cameraRequest) return;
+    if (!this.dialog.open || !this.drive.canUseAssist() || this.cameraRequest) return;
     const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Speech) return this.show('Este navegador no ofrece reconocimiento de voz.');
     this.show('');
-    this.micStatus('Activando micrófono…');
     const listener = this.listener = new KiwiListener({
       Speech,
       onStatus: message => this.micStatus(message),
-      onCommand: phrase => void this.execute(phrase),
+      onCommand: phrase => {
+        if (!this.running && !this.drive.canUseAssist()) {
+          this.show('Suelta el control manual o termina la demo antes de usar Kiwi.');
+          return;
+        }
+        void this.execute(phrase);
+      },
       onStop: () => { this.show('Control por voz detenido.'); void this.drive.stop(); },
       onError: message => {
         this.listener = null;
         this.micStatus(message);
+        if (!this.dialog.open) this.drive.show(message);
         this.render();
       },
     });
+    this.micStatus('Activando micrófono…');
     listener.start();
     this.render();
   }
@@ -111,7 +128,7 @@ export class AssistPanel {
           if (code !== 0) movementRequested = true;
           return this.drive.send(code, {
             duration,
-            stillWanted: () => this.dialog.open && !run.signal.aborted && !document.hidden,
+            stillWanted: () => !run.signal.aborted && this.drive.canUseAssist(),
           });
         },
       });
@@ -131,7 +148,7 @@ export class AssistPanel {
   }
 
   async startCamera() {
-    if (!this.drive.canUseAssist() || this.cameraRequest || this.listener || this.running) return;
+    if (!this.dialog.open || !this.drive.canUseAssist() || this.cameraRequest || this.listener || this.running) return;
     if (!navigator.mediaDevices?.getUserMedia) return this.show('La cámara requiere HTTPS o localhost.');
     const request = this.cameraRequest = new AbortController();
     this.render();
@@ -143,7 +160,7 @@ export class AssistPanel {
       this.show('Autoriza el acceso a la cámara.');
       const ready = await this.camera.start();
       if (request.signal.aborted) return;
-      if (!ready || !this.drive.canUseAssist() || !this.drive.activate()) {
+      if (!ready || !this.dialog.open || !this.drive.canUseAssist() || !this.drive.activate()) {
         throw new Error('No se pudo activar el control por cámara.');
       }
       $('gesture-help').hidden = false;

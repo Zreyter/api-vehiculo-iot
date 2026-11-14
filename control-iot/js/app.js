@@ -139,7 +139,7 @@ class DrivePage {
   }
 
   canUseAssist() {
-    return this.assist.dialog.open && this.api.socket?.readyState === WebSocket.OPEN &&
+    return this.api.socket?.readyState === WebSocket.OPEN &&
       this.commands && !this.busy && !this.stopping && !this.execution &&
       !this.controller.snapshot().armed && !document.hidden;
   }
@@ -293,10 +293,7 @@ class DrivePage {
     };
     refresh();
     $('open-bindings').onclick = () => this.openDialog('key-settings');
-    $('open-assist').onclick = () => {
-      this.assist.show('');
-      this.openDialog('assist-settings');
-    };
+    $('open-assist').onclick = () => this.openDialog('assist-settings');
   }
 
   openDialog(id) {

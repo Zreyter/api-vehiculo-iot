@@ -70,7 +70,7 @@ export class KiwiListener {
   }
 
   updateStatus() {
-    this.onStatus(this.waiting ? 'Te escucho…' : 'Escuchando «Kiwi»…');
+    this.onStatus(this.waiting ? 'Te escucho…' : 'Di «Kiwi» y tu orden. Para detenerte, di «Kiwi, para».');
   }
 
   resetWake() {

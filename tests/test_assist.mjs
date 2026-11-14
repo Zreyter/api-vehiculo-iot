@@ -150,7 +150,7 @@ test('una orden se planifica y ejecuta una sola vez y Parar descarta respuestas 
     hidden: false,
     getElementById(id) {
       if (!elements.has(id)) {
-        elements.set(id, { open: true, maxLength: 240, addEventListener() {} });
+        elements.set(id, { open: true, setAttribute() {}, addEventListener() {} });
       }
       return elements.get(id);
     },
@@ -171,9 +171,11 @@ test('una orden se planifica y ejecuta una sola vez y Parar descarta respuestas 
       return { recibida: true, orden_enviada: false };
     },
     release() { calls.push(['release']); },
+    stop() { calls.push(['stop']); panel.cancel(); },
   };
+  let panel;
   try {
-    const panel = new AssistPanel(drive);
+    panel = new AssistPanel(drive);
     panel.camera.stop = () => {};
     const first = panel.execute('avanza');
     await panel.execute('ignorar');
@@ -184,11 +186,12 @@ test('una orden se planifica y ejecuta una sola vez y Parar descarta respuestas 
     ]);
     const second = panel.execute('avanza otra vez');
     const signal = calls.at(-1)[2];
-    panel.cancel();
+    elements.get('listen-voice').onclick();
     resolvePlan({ pasos: [step] });
     await second;
     assert.equal(signal.aborted, true);
-    assert.equal(calls.length, 5);
+    assert.equal(calls.length, 6);
+    assert.deepEqual(calls.at(-1), ['stop']);
   } finally {
     if (originalDocument === undefined) delete globalThis.document;
     else globalThis.document = originalDocument;

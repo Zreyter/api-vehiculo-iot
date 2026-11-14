@@ -294,7 +294,7 @@ class DrivePage {
     refresh();
     $('open-bindings').onclick = () => this.openDialog('key-settings');
     $('open-assist').onclick = () => {
-      this.assist.select();
+      this.assist.show('');
       this.openDialog('assist-settings');
     };
   }

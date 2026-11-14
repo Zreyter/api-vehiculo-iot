@@ -89,34 +89,16 @@
     <div class="dialog-content">
       <h2 id="assist-title">Control con IA</h2>
       <div class="assist-options">
-        <button type="button" id="voice-control" aria-expanded="false" aria-controls="voice-options">Comandos por voz</button>
-        <button type="button" id="gesture-control" aria-expanded="false" aria-controls="gesture-options">Gestos con cámara</button>
+        <button type="button" id="start-camera" aria-pressed="false">Cámara</button>
+        <button type="button" id="listen-voice" aria-pressed="false">Kiwi</button>
       </div>
-      <div class="assist-mode" id="voice-options" hidden>
-        <p class="muted">Di «Kiwi, saluda con la pala». Para detenerte, di «Kiwi, para».</p>
-        <button type="button" id="listen-voice" class="primary">Activar «Kiwi»</button>
-        <p id="voice-status" class="muted" role="status"></p>
-        <form id="voice-form" class="assist-mode">
-          <label for="voice-phrase">Orden para la excavadora</label>
-          <input id="voice-phrase" required maxlength="240" autocomplete="off" placeholder="Por ejemplo, saluda con la pala">
-          <div class="dialog-actions">
-            <button type="submit" id="send-voice">Ejecutar orden</button>
-          </div>
-        </form>
+      <p id="gesture-help" class="muted" hidden>Abre la palma en el centro y muévela hacia un borde. Para detenerte, vuelve al centro o cierra la mano.</p>
+      <div id="gesture-preview" class="gesture-preview" hidden>
+        <video id="gesture-video" playsinline muted aria-label="Vista de la cámara"></video>
+        <div class="gesture-center" aria-hidden="true"></div>
       </div>
-      <div class="assist-mode" id="gesture-options" hidden>
-        <p class="muted">Abre la palma en el centro y muévela hacia un borde. Para detenerte, vuelve al centro o cierra la mano.</p>
-        <div id="gesture-preview" class="gesture-preview" hidden>
-          <video id="gesture-video" playsinline muted aria-label="Vista de la cámara"></video>
-          <div class="gesture-center" aria-hidden="true"></div>
-        </div>
-        <button type="button" id="start-camera" class="primary">Activar cámara y control</button>
-      </div>
+      <p id="voice-status" class="muted" role="status"></p>
       <p id="assist-notice" class="notice" role="status"></p>
-      <form method="dialog" class="dialog-actions">
-        <button type="button" class="danger" id="stop-assist" disabled>Parar</button>
-        <button>Cerrar</button>
-      </form>
     </div>
   </dialog>
 </body>

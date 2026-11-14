@@ -2,12 +2,12 @@ import { CameraGestureInput, createPalmDetector, executeVoicePlan, validateVoice
 import { KiwiListener } from './voice.js';
 
 const $ = id => document.getElementById(id);
+const maxVoicePhraseLength = 240;
 
 export class AssistPanel {
   constructor(drive) {
     this.drive = drive;
     this.dialog = $('assist-settings');
-    this.phrase = $('voice-phrase');
     this.camera = new CameraGestureInput({
       video: $('gesture-video'),
       detect: video => this.detector.detect(video),
@@ -15,15 +15,22 @@ export class AssistPanel {
       release: source => drive.releaseInput(source),
       ended: message => { this.show(message); void drive.stop(); },
     });
-    $('voice-control').onclick = () => this.select('voice');
-    $('gesture-control').onclick = () => this.select('gesture');
     $('listen-voice').onclick = () => this.toggleListening();
-    $('voice-form').onsubmit = event => {
-      event.preventDefault();
-      void this.execute(this.phrase.value.trim());
+    $('start-camera').onclick = () => {
+      if (this.camera.stream || this.cameraRequest) {
+        this.show('Cámara apagada.');
+        void drive.stop();
+      } else {
+        void this.startCamera();
+      }
     };
-    $('start-camera').onclick = () => this.startCamera();
-    $('stop-assist').onclick = () => { this.show('Control con IA detenido.'); void drive.stop(); };
+    this.dialog.addEventListener('click', event => {
+      if (event.target !== this.dialog) return;
+      const { left, right, top, bottom } = this.dialog.getBoundingClientRect();
+      if (event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom) {
+        this.dialog.close();
+      }
+    });
     this.dialog.addEventListener('close', () => {
       if (this.running || this.camera.stream || drive.controller.snapshot().armed) void drive.stop();
       else this.cancel();
@@ -34,38 +41,27 @@ export class AssistPanel {
 
   render() {
     const cameraActive = Boolean(this.camera.stream || this.cameraRequest);
+    const voiceActive = Boolean(this.listener || this.running);
     const available = this.drive.canUseAssist();
-    $('voice-control').disabled = $('gesture-control').disabled = Boolean(this.running || cameraActive);
-    this.phrase.disabled = Boolean(this.running);
-    $('send-voice').disabled = Boolean(this.running || !available);
-    const listen = $('listen-voice');
-    listen.disabled = !this.listener && Boolean(this.running || !available);
-    listen.textContent = this.listener ? 'Apagar micrófono' : 'Activar «Kiwi»';
-    $('start-camera').disabled = cameraActive || Boolean(this.running) || !available;
-    $('stop-assist').disabled = !cameraActive && !this.running && !this.listener;
-  }
-
-  select(mode) {
-    this.cancel();
-    this.show('');
-    for (const name of ['voice', 'gesture']) {
-      $(name + '-options').hidden = mode !== name;
-      $(name + '-control').setAttribute('aria-expanded', String(mode === name));
-    }
+    const camera = $('start-camera');
+    camera.setAttribute('aria-pressed', String(cameraActive));
+    camera.disabled = !cameraActive && (voiceActive || !available);
+    const kiwi = $('listen-voice');
+    kiwi.setAttribute('aria-pressed', String(voiceActive));
+    kiwi.disabled = !voiceActive && (cameraActive || !available);
   }
 
   micStatus(message) { $('voice-status').textContent = message; }
 
   toggleListening() {
-    if (this.listener) {
-      this.stopListening();
-      this.micStatus('Micrófono apagado.');
-      this.render();
+    if (this.listener || this.running) {
+      this.show('Kiwi desactivado.');
+      void this.drive.stop();
       return;
     }
-    if (!this.drive.canUseAssist() || this.running) return;
+    if (!this.drive.canUseAssist() || this.cameraRequest) return;
     const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Speech) return this.show('Este navegador no ofrece reconocimiento de voz. Puedes escribir la orden.');
+    if (!Speech) return this.show('Este navegador no ofrece reconocimiento de voz.');
     this.show('');
     this.micStatus('Activando micrófono…');
     const listener = this.listener = new KiwiListener({
@@ -92,7 +88,7 @@ export class AssistPanel {
 
   async execute(frase) {
     if (!frase || this.running || !this.drive.canUseAssist()) return;
-    if (frase.length > this.phrase.maxLength) {
+    if (frase.length > maxVoicePhraseLength) {
       this.show('La orden es demasiado larga. Intenta con una frase más corta.');
       return;
     }
@@ -135,7 +131,7 @@ export class AssistPanel {
   }
 
   async startCamera() {
-    if (!this.drive.canUseAssist() || this.cameraRequest || this.camera.stream) return;
+    if (!this.drive.canUseAssist() || this.cameraRequest || this.listener || this.running) return;
     if (!navigator.mediaDevices?.getUserMedia) return this.show('La cámara requiere HTTPS o localhost.');
     const request = this.cameraRequest = new AbortController();
     this.render();
@@ -150,8 +146,9 @@ export class AssistPanel {
       if (!ready || !this.drive.canUseAssist() || !this.drive.activate()) {
         throw new Error('No se pudo activar el control por cámara.');
       }
+      $('gesture-help').hidden = false;
       $('gesture-preview').hidden = false;
-      this.show('Cámara activa.');
+      this.show('');
       void this.camera.sample(this.camera.stream);
     } catch (error) {
       if (!request.signal.aborted) {
@@ -174,6 +171,7 @@ export class AssistPanel {
     this.camera.stop();
     this.detector?.close();
     this.detector = null;
+    $('gesture-help').hidden = true;
     $('gesture-preview').hidden = true;
     this.render();
   }

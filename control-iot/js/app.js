@@ -53,7 +53,6 @@ class DrivePage {
       this.cameraOrder = null;
       this.commands = null;
       this.assist.cancel();
-      if (this.assist.dialog.open) this.assist.dialog.close();
       this.execution = null;
       this.lease = false;
       this.showDevice('Consultando la placa');
@@ -127,7 +126,6 @@ class DrivePage {
     $('run-demo').disabled = this.busy || (!this.execution && !$('demo').value);
     $('run-demo').textContent = this.execution ? 'Cancelar demo' : 'Ejecutar demo';
     $('demo').disabled = this.busy || !!this.execution;
-    $('open-assist').disabled = !this.commands || this.api.socket?.readyState !== WebSocket.OPEN;
     for (const stick of this.sticks || []) stick.element.setAttribute('aria-disabled', String(!manual));
     document.querySelectorAll('[data-code]').forEach(button => {
       button.disabled = !manual || !this.commands?.has(Number(button.dataset.code));
@@ -143,15 +141,18 @@ class DrivePage {
     return armed;
   }
 
+  hasControlConnection() {
+    return Boolean(this.commands && this.api.socket?.readyState === WebSocket.OPEN);
+  }
+
   canUseAssist() {
-    return this.api.socket?.readyState === WebSocket.OPEN &&
-      this.commands && !this.busy && !this.stopping && !this.execution &&
+    return this.hasControlConnection() && !this.busy && !this.stopping && !this.execution &&
       !this.controller.snapshot().armed && !document.hidden;
   }
 
   press(code, source) {
     if (code === 0) { void this.stop(); return; }
-    if (source === 'camera' ? !this.assist.camera.stream : this.assist.cameraActive || this.assist.dialog.open) return;
+    if (source === 'camera' ? !this.assist.camera.stream : this.assist.cameraActive) return;
     if (code === 8) { if (!document.hidden) void this.runDemo(); return; }
     if (document.hidden || !this.controller.press(code, source)) return;
     if (source.startsWith('key:') || source.startsWith('pad:')) {
@@ -308,24 +309,20 @@ class DrivePage {
       refresh();
     };
     refresh();
-    $('open-bindings').onclick = () => this.openDialog('key-settings');
-    $('open-assist').onclick = () => this.openDialog('assist-settings');
-  }
-
-  openDialog(id) {
-    const keepingCamera = id === 'assist-settings' && this.assist.cameraActive;
-    if (!keepingCamera && (this.controller.snapshot().armed || this.execution || this.startingDemo || this.assist.cameraActive)) {
-      void this.stop();
-    }
-    $(id).showModal();
-    this.render();
+    $('open-bindings').onclick = () => {
+      if (this.controller.snapshot().armed || this.execution || this.startingDemo || this.assist.cameraActive || this.assist.running) {
+        void this.stop();
+      }
+      $('key-settings').showModal();
+      this.render();
+    };
   }
 
   bindInputs() {
     window.addEventListener('keydown', event => {
       if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || !this.api.socket ||
           event.target.closest?.('input,select,[contenteditable]')) return;
-      if (this.assist.dialog.open && event.target.closest?.('button')) return;
+      if ($('key-settings').open && event.target.closest?.('button')) return;
       const action = actions.find(item => this.keys[item.code] === event.code);
       if (!action) return;
       event.preventDefault();

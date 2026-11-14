@@ -242,7 +242,7 @@ test('el micrófono se rearma cuando el navegador termina un ciclo de escucha', 
   }
 });
 
-test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', async () => {
+test('Kiwi ejecuta desde el panel y Parar descarta respuestas tardías', async () => {
   const elements = new Map();
   const originalDocument = globalThis.document;
   const originalWindow = globalThis.window;
@@ -251,15 +251,7 @@ test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', 
   globalThis.document = {
     hidden: false,
     getElementById(id) {
-      if (!elements.has(id)) {
-        const handlers = new Map();
-        elements.set(id, {
-          open: true,
-          setAttribute() {},
-          addEventListener(event, handler) { handlers.set(event, handler); },
-          close() { this.open = false; handlers.get('close')?.(); },
-        });
-      }
+      if (!elements.has(id)) elements.set(id, { setAttribute() {} });
       return elements.get(id);
     },
   };
@@ -269,6 +261,7 @@ test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', 
   let finish;
   const released = new Promise(resolve => { finish = resolve; });
   const drive = {
+    hasControlConnection: () => true,
     canUseAssist: () => true,
     commands: new Map([[step.codigo, 1], [11, 2]]),
     api: {
@@ -292,7 +285,6 @@ test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', 
     panel = new AssistPanel(drive);
     panel.camera.stop = () => {};
     elements.get('listen-voice').onclick();
-    panel.dialog.close();
     assert.equal(sessions[0].aborted, undefined);
     assert.equal(elements.get('kiwi-status').textContent, 'Kiwi activo');
     sessions[0].say('Kiwi, avanza');
@@ -324,15 +316,12 @@ test('Kiwi ejecuta con el cuadro cerrado y Parar descarta respuestas tardías', 
   }
 });
 
-test('la cámara conserva el video al cerrar IA y refleja ambos joysticks', () => {
+test('la cámara etiqueta los movimientos y refleja ambos joysticks', () => {
   const badge = { dataset: {}, textContent: '' };
   const previousDocument = globalThis.document;
   const buttons = { setAttribute() {} };
-  const events = new Map();
-  const dialog = { open: true, addEventListener: (name, callback) => events.set(name, callback) };
   globalThis.document = {
     getElementById(id) {
-      if (id === 'assist-settings') return dialog;
       if (id === 'gesture-movement') return badge;
       return buttons;
     },
@@ -345,6 +334,8 @@ test('la cámara conserva el video al cerrar IA y refleja ambos joysticks', () =
   const reflected = [];
   const drive = {
     controller: { snapshot: () => state },
+    hasControlConnection: () => true,
+    canUseAssist: () => false,
     cameraOrder: null,
     reflectAssistMovement: code => reflected.push(code),
     stop: assert.fail,
@@ -355,8 +346,7 @@ test('la cámara conserva el video al cerrar IA y refleja ambos joysticks', () =
   const stream = camera.stream = {};
   const render = () => panel.renderCameraMovement();
   try {
-    dialog.open = false;
-    events.get('close')();
+    panel.render();
     assert.equal(camera.stream, stream);
     assert.equal(badge.textContent, 'Enviando · ↑ Avanzar');
     state.active = 2;

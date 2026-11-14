@@ -15,7 +15,8 @@
 <body class="control-page">
   <header class="header">
     <a class="brand" href="./" aria-label="Excavadora IoT"><img src="./assets/favicon/excavadora-192.png" alt=""><span>Excavadora IoT</span></a>
-    <button id="open-assist" type="button" class="subtle" aria-haspopup="dialog" disabled>IA</button>
+    <button id="listen-voice" type="button" class="subtle assist-toggle" aria-pressed="false" hidden disabled>Kiwi</button>
+    <button id="start-camera" type="button" class="subtle assist-toggle" aria-pressed="false" hidden disabled>Cámara</button>
     <button id="install" type="button" class="subtle" hidden>Instalar</button>
   </header>
   <main class="shell">
@@ -98,17 +99,6 @@
         <button id="reset-keys" type="button">Restaurar teclas</button>
         <button class="primary">Cerrar</button>
       </form>
-    </div>
-  </dialog>
-  <dialog class="card" id="assist-settings" aria-labelledby="assist-title">
-    <div class="dialog-content">
-      <h2 id="assist-title">Control con IA</h2>
-      <div class="assist-options">
-        <button type="button" id="start-camera" aria-pressed="false">Cámara</button>
-        <button type="button" id="listen-voice" aria-pressed="false">Kiwi</button>
-      </div>
-      <p id="voice-status" class="muted" role="status"></p>
-      <p id="assist-notice" class="notice" role="status"></p>
     </div>
   </dialog>
 </body>

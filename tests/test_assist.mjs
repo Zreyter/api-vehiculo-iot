@@ -11,13 +11,26 @@ test('la mano solo conduce después de pasar por el centro con la palma abierta'
   const palm = (x, y) => gesture.update({ gesture: 'Open_Palm', x, y });
   assert.equal(palm(.95, .5), 0);
   assert.equal(palm(.5, .5), 0);
-  assert.equal(palm(.95, .5), 13);
   assert.equal(palm(.7, .5), 0);
-  assert.equal(palm(.95, .5), 0);
+  assert.equal(palm(.73, .5), 13);
+  assert.equal(palm(.7, .5), 13);
+  assert.equal(palm(.65, .5), 0);
+  assert.equal(palm(.7, .5), 0);
   assert.equal(palm(.5, .5), 0);
   assert.equal(palm(.5, .1), 2);
   assert.equal(gesture.update(null), 0);
   assert.equal(palm(.5, .1), 0);
+});
+
+test('las pequeñas oscilaciones en diagonal no cambian la dirección', () => {
+  const gesture = new PalmGesture();
+  const palm = (x, y) => gesture.update({ gesture: 'Open_Palm', x, y });
+  assert.equal(palm(.5, .5), 0);
+  assert.equal(palm(.75, .5), 13);
+  assert.equal(palm(.71, .27), 13);
+  assert.equal(palm(.70, .24), 2);
+  assert.equal(palm(.73, .29), 2);
+  assert.equal(palm(.60, .40), 0);
 });
 
 test('el índice centrado controla la pala y el cambio de gesto libera el movimiento', () => {
@@ -26,7 +39,7 @@ test('el índice centrado controla la pala y el cambio de gesto libera el movimi
   assert.equal(hand('Open_Palm', .5, .5), 0);
   assert.equal(hand('Open_Palm', .5, .1), 2);
   assert.equal(hand('Pointing_Up', .5, .1), 0);
-  for (const [x, y, code] of [[.1, .5, 1], [.9, .5, 4], [.5, .1, 11], [.5, .9, 12]]) {
+  for (const [x, y, code] of [[.26, .5, 1], [.74, .5, 4], [.5, .26, 11], [.5, .74, 12]]) {
     assert.equal(hand('Pointing_Up', .5, .5), 0);
     assert.equal(hand('Pointing_Up', x, y), code);
   }

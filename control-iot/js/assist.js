@@ -1,9 +1,12 @@
 import { bucketDirections, direction, vehicleDirections } from './joystick.js';
 
 const movementCodes = new Set([1, 2, 3, 4, 10, 11, 12, 13]);
-const cameraFrameInterval = 65;
+const cameraFrameInterval = 50;
 const cameraFrameTimeout = 250;
 const cameraDirections = { Open_Palm: vehicleDirections, Pointing_Up: bucketDirections };
+const gestureStartDistance = .44;
+const gestureCenterDistance = .32;
+const gestureDirectionMargin = .10;
 
 /** El proveedor de voz entrega datos; el controlador conserva la autoridad sobre los movimientos. */
 export function validateVoicePlan(plan) {
@@ -42,11 +45,20 @@ export class PalmGesture {
     }
     const dx = x * 2 - 1;
     const dy = y * 2 - 1;
-    const inCenter = Math.hypot(dx, dy) <= .28;
-    if (inCenter) this.centered = true;
-    const code = this.centered ? direction(dx, dy, cameraDirections[gesture], .6) : 0;
-    if (this.previous && !code) this.centered = inCenter;
-    return this.previous = code;
+    const distance = Math.hypot(dx, dy);
+    if (distance <= gestureCenterDistance) {
+      this.centered = true;
+      return this.previous = 0;
+    }
+    if (!this.centered || (!this.previous && distance <= gestureStartDistance)) return 0;
+
+    const codes = cameraDirections[gesture];
+    const horizontal = dx < 0 ? codes.left : codes.right;
+    const vertical = dy < 0 ? codes.up : codes.down;
+    // Conserva el eje anterior cerca de la diagonal hasta que el nuevo eje predomine.
+    if (Math.abs(Math.abs(dx) - Math.abs(dy)) < gestureDirectionMargin &&
+        (this.previous === horizontal || this.previous === vertical)) return this.previous;
+    return this.previous = direction(dx, dy, codes, 0);
   }
 }
 

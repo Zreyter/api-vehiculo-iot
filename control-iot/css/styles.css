@@ -201,7 +201,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
 .control-page .assist-options { display: grid; gap: 6px; }
 .control-page .assist-mode { display: grid; gap: 6px; }
 .control-page .assist-mode[hidden] { display: none; }
-.control-page .assist-mode ol { margin: 0; padding-inline-start: 1.7rem; }
 .control-page .gesture-preview { position: relative; width: fit-content; max-width: 100%; margin-inline: auto; }
 .control-page .gesture-preview video {
   display: block;

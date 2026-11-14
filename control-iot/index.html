@@ -93,16 +93,16 @@
         <button type="button" id="gesture-control" aria-expanded="false" aria-controls="gesture-options">Gestos con cámara</button>
       </div>
       <div class="assist-mode" id="voice-options" hidden>
+        <p class="muted">Di «Kiwi, saluda con la pala». Para detenerte, di «Kiwi, para».</p>
+        <button type="button" id="listen-voice" class="primary">Activar «Kiwi»</button>
+        <p id="voice-status" class="muted" role="status"></p>
         <form id="voice-form" class="assist-mode">
           <label for="voice-phrase">Orden para la excavadora</label>
           <input id="voice-phrase" required maxlength="240" autocomplete="off" placeholder="Por ejemplo, saluda con la pala">
           <div class="dialog-actions">
-            <button type="button" id="listen-voice">Usar micrófono</button>
-            <button type="submit" id="plan-voice">Preparar plan</button>
+            <button type="submit" id="send-voice">Ejecutar orden</button>
           </div>
         </form>
-        <ol id="voice-plan" hidden aria-label="Movimientos propuestos"></ol>
-        <button type="button" class="primary" id="execute-voice" hidden>Ejecutar plan</button>
       </div>
       <div class="assist-mode" id="gesture-options" hidden>
         <p class="muted">Abre la palma en el centro y muévela hacia un borde. Para detenerte, vuelve al centro o cierra la mano.</p>

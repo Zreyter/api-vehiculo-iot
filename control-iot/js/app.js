@@ -30,7 +30,7 @@ class DrivePage {
       new Joystick($('vehicle-stick'), vehicleDirections, inputs),
       new Joystick($('bucket-stick'), bucketDirections, inputs),
     ];
-    this.assist = new AssistPanel(this, actions);
+    this.assist = new AssistPanel(this);
     $('arm').onclick = () => this.activate();
     $('stop').onclick = () => this.stop();
     $('run-demo').onclick = () => this.execution ? this.stop() : this.runDemo();
@@ -132,7 +132,7 @@ class DrivePage {
   }
 
   activate() {
-    if (this.busy || this.stopping || !this.commands || this.execution || document.hidden) return false;
+    if (this.busy || this.stopping || !this.commands || this.execution || this.assist.running || document.hidden) return false;
     const armed = this.controller.arm({ commands: this.commands, transport: 'wifi' });
     if (armed) this.show('');
     return armed;
@@ -318,7 +318,7 @@ class DrivePage {
     window.addEventListener('keyup', event => this.releaseInput('key:' + event.code));
     document.addEventListener('visibilitychange', () => { if (document.hidden) void this.stop(); });
     window.addEventListener('blur', () => {
-      if (this.controller.snapshot().armed || this.execution || this.startingDemo || this.assist.running) void this.stop();
+      if (this.controller.snapshot().armed || this.execution || this.startingDemo || this.assist.running || this.assist.listener) void this.stop();
     });
     window.addEventListener('pagehide', () => { this.assist.cancel(); this.api.close(); });
     const poll = () => {

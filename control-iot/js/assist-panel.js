@@ -1,11 +1,11 @@
 import { CameraGestureInput, createPalmDetector, executeVoicePlan, validateVoicePlan } from './assist.js';
+import { KiwiListener } from './voice.js';
 
 const $ = id => document.getElementById(id);
 
 export class AssistPanel {
-  constructor(drive, actions) {
+  constructor(drive) {
     this.drive = drive;
-    this.actions = actions;
     this.dialog = $('assist-settings');
     this.phrase = $('voice-phrase');
     this.camera = new CameraGestureInput({
@@ -17,12 +17,13 @@ export class AssistPanel {
     });
     $('voice-control').onclick = () => this.select('voice');
     $('gesture-control').onclick = () => this.select('gesture');
-    $('listen-voice').onclick = () => this.listen();
-    $('voice-form').onsubmit = event => { event.preventDefault(); void this.prepare(); };
-    $('execute-voice').onclick = () => this.execute();
+    $('listen-voice').onclick = () => this.toggleListening();
+    $('voice-form').onsubmit = event => {
+      event.preventDefault();
+      void this.execute(this.phrase.value.trim());
+    };
     $('start-camera').onclick = () => this.startCamera();
     $('stop-assist').onclick = () => { this.show('Control con IA detenido.'); void drive.stop(); };
-    this.phrase.oninput = () => { this.clearPlan(); this.show(''); };
     this.dialog.addEventListener('close', () => {
       if (this.running || this.camera.stream || drive.controller.snapshot().armed) void drive.stop();
       else this.cancel();
@@ -32,14 +33,16 @@ export class AssistPanel {
   show(message) { $('assist-notice').textContent = message; }
 
   render() {
-    const active = Boolean(this.running || this.camera.stream || this.cameraRequest);
-    $('voice-control').disabled = $('gesture-control').disabled = active;
+    const cameraActive = Boolean(this.camera.stream || this.cameraRequest);
+    const available = this.drive.canUseAssist();
+    $('voice-control').disabled = $('gesture-control').disabled = Boolean(this.running || cameraActive);
     this.phrase.disabled = Boolean(this.running);
-    $('plan-voice').disabled = Boolean(this.running || this.recognition || this.planRequest);
-    $('listen-voice').disabled = Boolean(this.running || this.recognition || this.planRequest);
-    $('start-camera').disabled = active || !this.drive.canUseAssist();
-    $('stop-assist').disabled = !active && !this.recognition && !this.planRequest;
-    $('execute-voice').disabled = Boolean(this.running || !this.drive.canUseAssist());
+    $('send-voice').disabled = Boolean(this.running || !available);
+    const listen = $('listen-voice');
+    listen.disabled = !this.listener && Boolean(this.running || !available);
+    listen.textContent = this.listener ? 'Apagar micrófono' : 'Activar «Kiwi»';
+    $('start-camera').disabled = cameraActive || Boolean(this.running) || !available;
+    $('stop-assist').disabled = !cameraActive && !this.running && !this.listener;
   }
 
   select(mode) {
@@ -51,94 +54,82 @@ export class AssistPanel {
     }
   }
 
-  clearPlan() {
-    this.planRequest?.abort();
-    this.planRequest = this.plan = null;
-    $('voice-plan').replaceChildren();
-    $('voice-plan').hidden = $('execute-voice').hidden = true;
-    this.render();
-  }
+  micStatus(message) { $('voice-status').textContent = message; }
 
-  listen() {
+  toggleListening() {
+    if (this.listener) {
+      this.stopListening();
+      this.micStatus('Micrófono apagado.');
+      this.render();
+      return;
+    }
+    if (!this.drive.canUseAssist() || this.running) return;
     const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Speech) return this.show('Este navegador no ofrece dictado. Escribe la orden para continuar.');
-    this.clearPlan();
-    const recognition = this.recognition = new Speech();
-    recognition.lang = 'es-MX';
-    recognition.onresult = event => {
-      if (this.recognition !== recognition) return;
-      this.phrase.value = event.results[0][0].transcript.trim().slice(0, this.phrase.maxLength);
-      this.show('Revisa la frase y pulsa Preparar plan.');
-    };
-    recognition.onerror = () => {
-      if (this.recognition === recognition) this.show('No se pudo transcribir el audio. Puedes escribir la orden.');
-    };
-    recognition.onend = () => {
-      if (this.recognition === recognition) this.recognition = null;
-      this.render();
-    };
-    try {
-      recognition.start();
-      this.show('Habla ahora.');
-    } catch {
-      this.recognition = null;
-      this.show('No se pudo iniciar el micrófono.');
-    }
+    if (!Speech) return this.show('Este navegador no ofrece reconocimiento de voz. Puedes escribir la orden.');
+    this.show('');
+    this.micStatus('Activando micrófono…');
+    const listener = this.listener = new KiwiListener({
+      Speech,
+      onStatus: message => this.micStatus(message),
+      onCommand: phrase => void this.execute(phrase),
+      onStop: () => { this.show('Control por voz detenido.'); void this.drive.stop(); },
+      onError: message => {
+        this.listener = null;
+        this.micStatus(message);
+        this.render();
+      },
+    });
+    listener.start();
     this.render();
   }
 
-  async prepare() {
-    const frase = this.phrase.value.trim();
-    if (!frase) return this.show('Escribe o dicta una orden.');
-    this.clearPlan();
-    const request = this.planRequest = new AbortController();
-    this.render();
-    this.show('Interpretando la orden…');
-    try {
-      const plan = await this.drive.api.post('/ia/plan', { frase }, request.signal);
-      if (this.planRequest !== request || !this.dialog.open) return;
-      this.plan = validateVoicePlan(plan);
-      $('voice-plan').replaceChildren(...this.plan.map(step => {
-        const item = document.createElement('li');
-        const name = this.actions.find(action => action.code === step.codigo).name;
-        item.textContent = name + ' · ' + step.duracion_ms + ' ms, pausa ' + step.pausa_ms + ' ms';
-        return item;
-      }));
-      $('voice-plan').hidden = $('execute-voice').hidden = false;
-      this.show('Revisa los movimientos antes de ejecutar el plan.');
-    } catch (error) {
-      if (this.planRequest === request) this.show(error.message);
-    } finally {
-      if (this.planRequest === request) this.planRequest = null;
-      this.render();
-    }
+  stopListening() {
+    const listener = this.listener;
+    this.listener = null;
+    listener?.stop();
+    this.micStatus('');
   }
 
-  async execute() {
-    if (!this.plan || this.running || !this.drive.canUseAssist()) return;
-    const plan = { pasos: this.plan };
-    if (!plan.pasos.every(step => this.drive.commands.has(step.codigo))) {
-      return this.show('El catálogo tiene movimientos del plan que no están disponibles.');
+  async execute(frase) {
+    if (!frase || this.running || !this.drive.canUseAssist()) return;
+    if (frase.length > this.phrase.maxLength) {
+      this.show('La orden es demasiado larga. Intenta con una frase más corta.');
+      return;
     }
-    this.clearPlan();
+    this.listener?.resetWake();
     const run = this.running = new AbortController();
     this.render();
+    this.show('Interpretando la orden…');
+    let movementRequested = false;
     try {
-      const { sent, total } = await executeVoicePlan(plan, {
+      const plan = await this.drive.api.post('/ia/plan', { frase }, run.signal);
+      if (this.running !== run || !this.drive.canUseAssist()) return;
+      const pasos = validateVoicePlan(plan);
+      if (!pasos.every(step => this.drive.commands.has(step.codigo))) {
+        throw new Error('La orden incluye movimientos que no están disponibles.');
+      }
+      this.show('Ejecutando la orden…');
+      const { sent, total } = await executeVoicePlan({ pasos }, {
         signal: run.signal,
-        send: (code, duration) => this.drive.send(code, {
-          duration,
-          stillWanted: () => this.dialog.open && !run.signal.aborted && !document.hidden,
-        }),
-        onStep: (step, count) => this.show(`Procesando paso ${step} de ${count}…`),
+        send: (code, duration) => {
+          if (code !== 0) movementRequested = true;
+          return this.drive.send(code, {
+            duration,
+            stillWanted: () => this.dialog.open && !run.signal.aborted && !document.hidden,
+          });
+        },
       });
-      if (this.running === run) this.show(`Plan completado. Envíos a la placa: ${sent} de ${total}.`);
+      if (this.running === run) this.show(`Orden completada. Envíos a la placa: ${sent} de ${total}.`);
     } catch (error) {
       if (this.running === run) this.show(error.message);
     } finally {
       if (this.running === run) {
-        this.running = null;
-        await this.drive.stop();
+        try {
+          if (movementRequested) await this.drive.release();
+        } finally {
+          if (this.running === run) this.running = null;
+          this.render();
+        }
       }
     }
   }
@@ -177,15 +168,13 @@ export class AssistPanel {
   cancel() {
     this.running?.abort();
     this.running = null;
-    const recognition = this.recognition;
-    this.recognition = null;
-    recognition?.abort();
+    this.stopListening();
     this.cameraRequest?.abort();
     this.cameraRequest = null;
     this.camera.stop();
     this.detector?.close();
     this.detector = null;
     $('gesture-preview').hidden = true;
-    this.clearPlan();
+    this.render();
   }
 }

@@ -173,7 +173,7 @@ function delay(ms, signal) {
   });
 }
 
-export async function executeVoicePlan(plan, { send, signal, onStep }) {
+export async function executeVoicePlan(plan, { send, signal, onStep = () => {} }) {
   const steps = validateVoicePlan(plan);
   let sent = 0;
   for (const [index, step] of steps.entries()) {

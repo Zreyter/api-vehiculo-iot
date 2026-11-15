@@ -3,6 +3,13 @@
   "framework": null,
   "buildCommand": "node control-iot/build.mjs",
   "outputDirectory": "control-iot/dist",
+  "redirects": [
+    {
+      "source": "/assets/downloads/Mando-IoT-2.0.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.1.apk",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/sw.js",

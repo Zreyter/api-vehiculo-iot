@@ -18,8 +18,7 @@ class DrivePage {
     this.padInputs = new Set();
     this.stickInputs = new Map();
     this.controller = createController({
-      pulseCodes: [4],
-      send: (code, _target, options) => this.send(code, options),
+      send: (code, target, options) => this.send(code, options, target.camera),
       changed: () => this.render(),
       fault: error => { this.show(error.message); void this.stop(); },
       notice: message => this.show(message),
@@ -136,7 +135,11 @@ class DrivePage {
   activate(source) {
     if (this.assist.cameraActive && source !== 'camera') return false;
     if (this.busy || this.stopping || !this.commands || this.execution || this.assist.running || document.hidden) return false;
-    const armed = this.controller.arm({ commands: this.commands, transport: 'wifi' });
+    const camera = source === 'camera';
+    const armed = this.controller.arm({
+      commands: this.commands, transport: 'wifi', camera,
+      pulseCodes: camera ? [] : [bucketDirections.right],
+    });
     if (armed) this.show('');
     return armed;
   }
@@ -186,11 +189,12 @@ class DrivePage {
     for (const stick of this.sticks) stick.clear();
   }
 
-  async send(code, options) {
+  async send(code, options, camera = false) {
     if (!this.api.socket || (code !== 0 && options.stillWanted?.() === false)) return cancelledOrder;
     const revision = this.revision;
     const action = actions.find(item => item.code === code);
     const data = { codigo: action.wireCode ?? code, intencion: ++this.intent };
+    if (camera && data.codigo === bucketDirections.right) data.mantener = true;
     if (data.codigo === 9) data.pulso_ms = action.duration;
     if (options.duration !== undefined) data.duracion_ms = options.duration;
     const result = await this.api.call('entrada', data);

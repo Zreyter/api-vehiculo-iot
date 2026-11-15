@@ -94,6 +94,23 @@ test('liberación durante una escritura lenta no se pierde ni acumula órdenes v
   s.control.press(2,'W');await Promise.resolve();await Promise.resolve();
   s.control.press(10,'A');s.control.release('A');s.control.release('W');unblock();await s.control.idle();assert.deepEqual(s.codes(),[2,0]);
 });
+test('el giro derecho por cámara se mantiene hasta liberar el gesto', async () => {
+  const orders = [];
+  const controller = createController({
+    pulseCodes: [4],
+    send: async code => { orders.push(code); },
+    timer: () => assert.fail('El gesto no debe armar un temporizador de toque.'),
+  });
+  controller.arm({ commands: new Map([[0, 0], [4, 4]]), pulseCodes: [] });
+  assert.equal(controller.press(4, 'camera'), true);
+  await controller.idle();
+  assert.deepEqual(orders, [4]);
+  assert.equal(controller.snapshot().pulse, null);
+  controller.release('camera');
+  await controller.idle();
+  assert.deepEqual(orders, [4, 0]);
+});
+
 test('un pulso de 200 ms no se corta al soltar ni se repite mientras se mantiene',async()=>{
   const s=setup();s.control.press(5,'Z');await s.control.idle();assert.equal([...s.timers.values()][0].ms,200);
   s.control.release('Z');await s.control.idle();assert.deepEqual(s.codes(),[5]);

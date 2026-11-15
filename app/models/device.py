@@ -23,6 +23,7 @@ class ControlInput(BaseModel):
 
 class TimedControlInput(ControlInput):
     duracion_ms: TimedMovementDuration | None = None
+    mantener: bool = Field(default=False, strict=True)
 
 
 class DeviceCommand(ControlLease, ControlInput):

@@ -274,6 +274,35 @@ class SocketGatewayTests(unittest.TestCase):
             order = device.receive_json()
             self.assertEqual((order["tipo"], order["codigo"], order["demo_ms"]), ("orden", 4, 5000))
 
+    def test_camera_holds_right_turn_until_release(self):
+        db = FakeMySQL()
+        db.data["comandos"][104] = dict(id_comando=104, id_vehiculo=1, nombre="PALA_DERECHA",
+                                       codigo=4, descripcion="", activo=1)
+        settings = Settings(_env_file=None, control_token="TestAb12", device_token="device-test",
+                            browser_origins=[self.origin], mysql_password="local-fake")
+        self.client = TestClient(create_app(settings))
+        with (patch("app.core.database.mysql.connector.connect", db.connect), self.client,
+              self.client.websocket_connect(self.path, subprotocols=["iot-device-direct"],
+                  headers={"authorization": "Bearer device-test"}) as device,
+              self.open_browser("iot-control") as control):
+            def enter(intent, **data):
+                control.send_json({"id": intent, "accion": "entrada", "datos": {"intencion": intent, **data}})
+                while (response := control.receive_json()).get("id") != intent:
+                    pass
+                return response
+
+            self.assertEqual(enter(1, codigo=2, mantener=True)["estado_http"], 422)
+            self.assertEqual(enter(2, codigo=4, mantener=True, duracion_ms=500)["estado_http"], 422)
+            result = enter(3, codigo=4, mantener=True)["datos"]
+            self.assertTrue(result["orden_enviada"])
+            self.assertEqual(result["duracion_ms"], 0)
+            self.assertEqual(device.receive_json()["tipo"], "parar")
+            order = device.receive_json()
+            self.assertEqual((order["tipo"], order["codigo"]), ("orden", 4))
+            self.assertNotIn("demo_ms", order)
+            self.assertTrue(enter(4, codigo=0)["datos"]["orden_enviada"])
+            self.assertEqual(device.receive_json()["tipo"], "parar")
+
     def test_direct_device_receives_orders_and_stop_without_sending_any_messages(self):
         db = FakeMySQL()
         db.data["movimientos"][501]["duracion_ms"] = 100

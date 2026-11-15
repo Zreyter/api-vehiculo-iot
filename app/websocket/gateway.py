@@ -104,6 +104,8 @@ class ControlConnection:
         duration = order.duracion_ms
         if duration is not None and code not in (1, 2, 3, 4, 10, 11, 12, 13):
             raise ServiceError(422, "Duración incompatible con el movimiento.")
+        if order.mantener and (code != 4 or duration is not None):
+            raise ServiceError(422, "Mantener solo admite el giro derecho de la pala sin duración fija.")
         if self.closed or intent <= self.input_intent:
             return {"cancelado": True}
         self.input_intent = intent
@@ -115,7 +117,7 @@ class ControlConnection:
             return not self.closed and generation == self.input_generation and intent == self.input_intent
 
         # El toque manual de la pala derecha conserva su duración predeterminada.
-        movement_ms = 200 if code == 4 and duration is None else duration
+        movement_ms = 200 if code == 4 and duration is None and not order.mantener else duration
 
         async def without_device(message):
             pulse = order.pulso_ms or movement_ms or (200 if 5 <= code <= 8 else 0)

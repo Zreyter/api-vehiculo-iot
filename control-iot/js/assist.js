@@ -7,6 +7,9 @@ const cameraDirections = { Open_Palm: vehicleDirections, Pointing_Up: bucketDire
 const gestureStartDistance = .44;
 const gestureCenterDistance = .32;
 const gestureDirectionMargin = .10;
+const bucketGestureStartDistance = .32;
+const bucketGestureCenterDistance = .22;
+const bucketGestureDirectionMargin = .14;
 
 /** El proveedor de voz entrega datos; el controlador conserva la autoridad sobre los movimientos. */
 export function validateVoicePlan(plan) {
@@ -46,17 +49,21 @@ export class PalmGesture {
     const dx = x * 2 - 1;
     const dy = y * 2 - 1;
     const distance = Math.hypot(dx, dy);
-    if (distance <= gestureCenterDistance) {
+    const bucketGesture = gesture === 'Pointing_Up';
+    const centerDistance = bucketGesture ? bucketGestureCenterDistance : gestureCenterDistance;
+    const startDistance = bucketGesture ? bucketGestureStartDistance : gestureStartDistance;
+    const directionMargin = bucketGesture ? bucketGestureDirectionMargin : gestureDirectionMargin;
+    if (distance <= centerDistance) {
       this.centered = true;
       return this.previous = 0;
     }
-    if (!this.centered || (!this.previous && distance <= gestureStartDistance)) return 0;
+    if (!this.centered || (!this.previous && distance <= startDistance)) return 0;
 
     const codes = cameraDirections[gesture];
     const horizontal = dx < 0 ? codes.left : codes.right;
     const vertical = dy < 0 ? codes.up : codes.down;
     // Conserva el eje anterior cerca de la diagonal hasta que el nuevo eje predomine.
-    if (Math.abs(Math.abs(dx) - Math.abs(dy)) < gestureDirectionMargin &&
+    if (Math.abs(Math.abs(dx) - Math.abs(dy)) < directionMargin &&
         (this.previous === horizontal || this.previous === vertical)) return this.previous;
     return this.previous = direction(dx, dy, codes, 0);
   }

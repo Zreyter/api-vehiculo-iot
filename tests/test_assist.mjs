@@ -47,6 +47,21 @@ test('el índice centrado controla la pala y el cambio de gesto libera el movimi
   assert.equal(hand('Pointing_Up', .5, .9), 0);
 });
 
+test('la pala responde a un gesto lateral más corto y tolera pequeñas diagonales', () => {
+  const gesture = new PalmGesture();
+  const hand = (x, y = .5) => gesture.update({ gesture: 'Pointing_Up', x, y });
+  assert.equal(hand(.68), 0);
+  assert.equal(hand(.5), 0);
+  assert.equal(hand(.65), 0);
+  assert.equal(hand(.68), 4);
+  assert.equal(hand(.63), 4);
+  assert.equal(hand(.68, .29), 4);
+  assert.equal(hand(.60), 0);
+  assert.equal(hand(.32), 1);
+  assert.equal(gesture.update(null), 0);
+  assert.equal(hand(.32), 0);
+});
+
 test('un video congelado o un detector lento sueltan la pala y conservan la cámara', t => {
   t.mock.method(performance, 'now', () => now);
   const originalDocument = globalThis.document;

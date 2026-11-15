@@ -132,7 +132,7 @@
         if (!armed || pulse || !action || !context.commands.has(code) || pressed.has(source)) return false;
 
         notice('');
-        const held = action.held && !pulseCodes.includes(code);
+        const held = action.held && !(context.pulseCodes ?? pulseCodes).includes(code);
         pressed.set(source, {code, held});
         if (!held) pulse = {code, duration: action.duration ?? 200};
         desired = code; pump(); notify(); return true;

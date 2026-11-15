@@ -108,6 +108,17 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
 .control-page .brand { margin-inline-end: auto; }
 .control-page .brand img { width: 32px; height: 32px; }
 .control-page .header button { min-height: 36px; padding-block: 4px; }
+.control-page .apk-download {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 4px 12px;
+  border: 1px solid #bfc6b8;
+  border-radius: 8px;
+  font-weight: 680;
+  white-space: nowrap;
+}
+.control-page .apk-download:hover { filter: brightness(.94); }
 .control-page .shell {
   width: min(1040px, calc(100% - 2 * var(--gutter)));
   display: grid;

@@ -158,7 +158,6 @@ export class AccessForm {
           offerPasswordSave(form.elements.username.value, code);
         }
         form.replaceWith(formPosition);
-        content.classList.toggle('entered-with-code', enteredByUser);
         content.hidden = false;
         setStatus('Conectado', 'ready');
       } catch (error) {
@@ -172,7 +171,6 @@ export class AccessForm {
     api.addEventListener('disconnect', () => {
       setStatus('Sin conexión', 'offline');
       content.hidden = true;
-      content.classList.remove('entered-with-code');
       formPosition.replaceWith(form);
     });
     form.addEventListener('submit', event => { event.preventDefault(); void connect(true); });

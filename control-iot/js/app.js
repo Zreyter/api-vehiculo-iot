@@ -54,7 +54,7 @@ class DrivePage {
       this.assist.cancel();
       this.execution = null;
       this.lease = false;
-      this.showDevice('Consultando la placa');
+      this.showDevice('Consultando el vehículo');
       this.resetSticks();
       void this.controller.halt();
       this.render();
@@ -72,7 +72,7 @@ class DrivePage {
     const [commands, demos] = await Promise.all([this.api.get(base + '/comandos'), this.api.get(base + '/demos')]);
     this.commands = resolveCommands(commands).map;
     this.commands.set(0, 0);
-    $('demo').replaceChildren(new Option('Selecciona una demo', ''));
+    $('demo').replaceChildren(new Option('Elige una demo', ''));
     for (const demo of demos.filter(d => d.activo === 1)) {
       $('demo').add(new Option(demo.nombre, demo.id_demo));
     }
@@ -94,9 +94,10 @@ class DrivePage {
     this.render();
   }
 
-  showDevice(message) {
+  showDevice(message, state = 'pending') {
     const status = $('device-status');
     if (status.textContent !== message) status.textContent = message;
+    status.dataset.state = state;
   }
 
   async refreshDevice() {
@@ -106,11 +107,11 @@ class DrivePage {
     try {
       const device = await this.api.call('estado', {}, 1000);
       if (this.api.socket !== socket) return;
-      const label = device.listo ? 'Placa lista por WebSocket' : device.conectado
-        ? 'Placa conectada · control WiFi pendiente' : 'Placa sin conexión';
-      this.showDevice(label);
+      if (device.listo) this.showDevice('Vehículo listo', 'ready');
+      else if (device.conectado) this.showDevice('Esperando control WiFi');
+      else this.showDevice('Vehículo sin conexión', 'offline');
     } catch {
-      if (this.api.socket === socket) this.showDevice('Estado de la placa no disponible');
+      if (this.api.socket === socket) this.showDevice('Estado no disponible', 'offline');
     } finally {
       if (this.checkingDevice === socket) this.checkingDevice = null;
     }
@@ -121,9 +122,12 @@ class DrivePage {
     const cameraActive = this.assist?.cameraActive;
     const manual = armed && !cameraActive;
     $('arm').disabled = this.busy || !!this.stopping || armed || !!this.execution || cameraActive || !!this.assist?.running;
-    $('arm').textContent = cameraActive ? 'Cámara activa' : armed ? 'Control activo' : 'Activar control';
+    const manualSelected = manual;
+    $('arm').setAttribute('aria-pressed', String(manualSelected));
+    $('manual-hint').hidden = !manualSelected;
+    $('stop').hidden = !this.hasControlConnection();
     $('run-demo').disabled = this.busy || (!this.execution && !$('demo').value);
-    $('run-demo').textContent = this.execution ? 'Cancelar demo' : 'Ejecutar demo';
+    $('run-demo').textContent = this.execution ? 'Cancelar' : 'Ejecutar';
     $('demo').disabled = this.busy || !!this.execution;
     for (const stick of this.sticks || []) stick.element.setAttribute('aria-disabled', String(!manual));
     document.querySelectorAll('[data-code]').forEach(button => {

@@ -125,6 +125,10 @@ export class AccessForm {
     const reveal = form.querySelector('.login-reveal');
     const status = document.querySelector('#status');
     const notice = document.querySelector('#notice');
+    const setStatus = (text, state) => {
+      status.textContent = text;
+      status.dataset.state = state;
+    };
     const swagger = document.querySelector('[data-swagger]');
     if (swagger) swagger.href = new URL('/docs', config.api);
     const showCode = visible => {
@@ -138,7 +142,7 @@ export class AccessForm {
       submit.disabled = true;
       showCode(false);
       notice.textContent = '';
-      status.textContent = 'Conectando…';
+      setStatus('Conectando…', 'pending');
       const code = input.value;
       try {
         await api.open(code, role);
@@ -155,17 +159,17 @@ export class AccessForm {
         }
         form.replaceWith(formPosition);
         content.hidden = false;
-        status.textContent = 'Conectado';
+        setStatus('Conectado', 'ready');
       } catch (error) {
         api.close();
         notice.textContent = error.message;
-        status.textContent = 'Sin conexión';
+        setStatus('Sin conexión', 'offline');
       } finally {
         submit.disabled = false;
       }
     };
     api.addEventListener('disconnect', () => {
-      status.textContent = 'Sin conexión';
+      setStatus('Sin conexión', 'offline');
       content.hidden = true;
       formPosition.replaceWith(form);
     });

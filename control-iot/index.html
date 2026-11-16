@@ -15,13 +15,18 @@
 <body class="control-page">
   <header class="header">
     <a class="brand" href="./" aria-label="Excavadora IoT"><img src="./assets/favicon/excavadora-192.png" alt=""><span>Excavadora IoT</span></a>
-    <button id="listen-voice" type="button" class="subtle assist-toggle" aria-pressed="false" hidden disabled>Kiwi</button>
-    <button id="start-camera" type="button" class="subtle assist-toggle" aria-pressed="false" hidden disabled>Cámara</button>
-    <a id="install" class="subtle apk-download" href="./assets/downloads/Mando-IoT-2.5.apk"
+    <nav class="main-nav" aria-label="Páginas">
+      <a href="./" aria-current="page">Control</a><a href="./monitor.html">Monitor</a>
+    </nav>
+    <a id="install" class="subtle apk-download" href="./assets/downloads/Mando-IoT-2.6.apk"
       download hidden aria-label="Instalar Mando IoT para Android">Instalar</a>
+    <button id="stop" type="button" class="danger stop-control" hidden>Parar</button>
   </header>
   <main class="shell">
-    <div class="title"><h1>Control de excavadora</h1><p class="status" id="status" aria-live="polite">Sin conexión</p></div>
+    <div class="title page-heading">
+      <h1>Control del vehículo</h1>
+      <p class="status" id="status" data-state="offline" aria-live="polite">Sin conexión</p>
+    </div>
     <form class="card login" id="login" method="post" autocomplete="on">
       <input type="hidden" name="username" autocomplete="username" value="Excavadora IoT">
       <div class="login-field">
@@ -37,14 +42,27 @@
       <label class="remember-code"><input id="remember-code" type="checkbox"> Recordar código en este dispositivo</label>
     </form>
     <section id="controls" class="console" hidden>
-      <div class="toolbar card">
-        <button id="arm" type="button" class="primary">Activar control</button>
-        <button id="stop" type="button" class="danger">Parar</button>
-        <button id="logout" type="button">Salir</button>
-        <button id="open-bindings" type="button" aria-haspopup="dialog">Teclado y mando</button>
-        <span id="device-status" class="muted" role="status">Consultando la placa</span>
-        <span id="kiwi-status" class="muted" role="status"></span>
-      </div>
+      <section class="toolbar card" aria-labelledby="mode-heading">
+        <div class="toolbar-top">
+          <div class="toolbar-heading">
+            <h2 id="mode-heading">Modo de control</h2>
+            <span id="device-status" class="status" data-state="pending" role="status">Consultando el vehículo</span>
+          </div>
+          <div class="toolbar-tools">
+            <button id="open-bindings" type="button" aria-haspopup="dialog">Teclado y mando</button>
+            <button id="logout" type="button">Salir</button>
+          </div>
+        </div>
+        <div class="mode-buttons">
+          <button id="arm" type="button" aria-pressed="false"><strong>Manual</strong><span>Joysticks</span></button>
+          <button id="start-camera" type="button" aria-pressed="false" hidden disabled><strong>Cámara</strong><span>Gestos con la mano</span></button>
+          <button id="listen-voice" type="button" aria-pressed="false" hidden disabled><strong>Kiwi</strong><span>Control por voz</span></button>
+        </div>
+        <div class="mode-feedback">
+          <p id="manual-hint" hidden>Mantén el joystick para mover y suéltalo para detenerte.</p>
+          <p id="kiwi-status" role="status"></p>
+        </div>
+      </section>
       <div class="stick-grid">
         <section class="card stick-card">
           <div class="stick-label"><h2>Vehículo</h2><span>W A S D</span></div>
@@ -53,7 +71,7 @@
               <span class="north">↑</span><span class="west">←</span><span class="east">→</span><span class="south">↓</span><span class="knob"></span>
             </div>
           </div>
-          <div class="stick-legend"><span>Avanzar</span><span>Girar</span><span>Retroceder</span></div>
+          <div class="stick-legend"><span>↑ Avanza</span><span>← → Gira</span><span>↓ Retrocede</span></div>
         </section>
         <section class="card stick-card">
           <div class="stick-label"><h2>Pala</h2><span>↑ ← ↓ →</span></div>
@@ -62,15 +80,15 @@
               <span class="north">↑</span><span class="west">←</span><span class="east">→</span><span class="south">↓</span><span class="knob"></span>
             </div>
           </div>
-          <div class="stick-legend"><span>Agarrar</span><span>Girar</span><span>Soltar</span></div>
+          <div class="stick-legend"><span>↑ Agarra</span><span>← → Gira</span><span>↓ Suelta</span></div>
         </section>
       </div>
       <section class="card gesture-card" id="gesture-card" aria-label="Cámara de gestos" hidden>
-        <div id="gesture-help" class="muted" hidden>
-          <p><strong>Palma abierta</strong> · Conduce en la dirección de tu mano.</p>
-          <p><strong>Índice levantado</strong> · Izquierda o derecha para girar la pala. Arriba para agarrar, abajo para soltar.</p>
-          <p>Empieza en el centro. Para detenerte, vuelve al centro o cierra la mano.</p>
-        </div>
+        <details id="gesture-help" class="gesture-help" hidden>
+          <summary>Cómo usar la cámara</summary>
+          <p><strong>Palma abierta</strong> para conducir. <strong>Índice levantado</strong> para usar la pala.</p>
+          <p>Empieza en el centro. Vuelve al centro o cierra la mano para parar.</p>
+        </details>
         <div id="gesture-preview" class="gesture-preview">
           <video id="gesture-video" playsinline muted aria-label="Vista de la cámara"></video>
           <canvas id="gesture-landmarks" class="gesture-landmarks" aria-hidden="true"></canvas>
@@ -79,16 +97,18 @@
         </div>
         <p id="gesture-status" class="muted" role="status"></p>
       </section>
-      <section class="card actions" aria-label="Funciones">
+      <section class="card actions" aria-labelledby="functions-heading">
+        <h2 id="functions-heading">Funciones</h2>
         <div class="button-grid">
-          <button type="button" data-code="7">Luz</button><button type="button" data-code="6">Velocidad</button>
-          <button type="button" data-code="5">Mute</button><button type="button" data-code="9">Encender</button>
+          <button type="button" data-code="7">Luces</button><button type="button" data-code="6">Velocidad</button>
+          <button type="button" data-code="5">Silencio</button><button type="button" data-code="9">Encender</button>
           <button type="button" data-code="14">Apagar</button>
         </div>
       </section>
-      <section class="card demo">
-        <select id="demo" aria-label="Demo guardada"><option value="">Selecciona una demo</option></select>
-        <button type="button" class="primary" id="run-demo">Ejecutar demo</button>
+      <section class="card demo" aria-labelledby="demo-heading">
+        <h2 id="demo-heading">Demostraciones</h2>
+        <select id="demo" aria-label="Demo guardada"><option value="">Elige una demo</option></select>
+        <button type="button" class="primary" id="run-demo">Ejecutar</button>
       </section>
     </section>
     <p id="notice" class="notice" aria-live="polite"></p>

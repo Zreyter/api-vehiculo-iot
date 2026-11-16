@@ -6,12 +6,17 @@
   "redirects": [
     {
       "source": "/assets/downloads/Mando-IoT-2.0.apk",
-      "destination": "/assets/downloads/Mando-IoT-2.2.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.3.apk",
       "permanent": false
     },
     {
       "source": "/assets/downloads/Mando-IoT-2.1.apk",
-      "destination": "/assets/downloads/Mando-IoT-2.2.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.3.apk",
+      "permanent": false
+    },
+    {
+      "source": "/assets/downloads/Mando-IoT-2.2.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.3.apk",
       "permanent": false
     }
   ],

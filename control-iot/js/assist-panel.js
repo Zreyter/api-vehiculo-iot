@@ -1,5 +1,5 @@
 import { CameraGestureInput, createPalmDetector, executeVoicePlan, validateVoicePlan } from './assist.js';
-import { KiwiListener } from './voice.js';
+import { fallbackVoicePlan, KiwiListener } from './voice.js';
 
 const $ = id => document.getElementById(id);
 const maxVoicePhraseLength = 240;
@@ -131,7 +131,13 @@ export class AssistPanel {
     try {
       const plan = await this.drive.api.post('/ia/plan', {
         frase, codigos_anteriores: this.lastVoiceCodes,
-      }, run.signal);
+      }, run.signal).catch(error => {
+        if ([502, 503, 504].includes(error.status)) {
+          const fallback = fallbackVoicePlan(frase);
+          if (fallback) return fallback;
+        }
+        throw error;
+      });
       if (this.running !== run || !this.drive.canUseAssist()) return;
       const pasos = validateVoicePlan(plan);
       if (!pasos.every(step => this.drive.commands.has(step.codigo))) {

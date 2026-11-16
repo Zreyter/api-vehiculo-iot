@@ -332,6 +332,53 @@ test('Kiwi ejecuta desde el panel y Parar descarta respuestas tardías', async (
   }
 });
 
+test('Kiwi recupera el saludo y avance de un fallo del proveedor sin interpretar frases compuestas', async () => {
+  const previousDocument = globalThis.document;
+  const button = { setAttribute() {} };
+  globalThis.document = { getElementById: () => button };
+  const sent = [];
+  const messages = [];
+  let status = 502;
+  const drive = {
+    hasControlConnection: () => true,
+    canUseAssist: () => true,
+    commands: new Map([[1, 1], [2, 2], [4, 4]]),
+    api: {
+      async post() {
+        throw Object.assign(new Error('El proveedor de IA no pudo generar el plan.'), { status });
+      },
+    },
+    send(code, { duration, stillWanted }) {
+      assert.equal(stillWanted(), true);
+      sent.push([code, duration]);
+      return { orden_enviada: true };
+    },
+    show: message => messages.push(message),
+    reflectAssistMovement() {},
+    release() {},
+  };
+  try {
+    const panel = new AssistPanel(drive);
+    await panel.execute('¡Saluda!');
+    await panel.execute('Avanza hacia adelante');
+    assert.deepEqual(sent, [
+      [1, 250], [0, undefined], [4, 500], [0, undefined], [1, 250], [0, undefined],
+      [2, 400], [0, undefined],
+    ]);
+    await panel.execute('avanza hacia adelante y gira');
+    await panel.execute('no avanza hacia adelante');
+    status = 422;
+    await panel.execute('saluda');
+    status = 401;
+    await panel.execute('avanza hacia adelante');
+    assert.equal(sent.length, 8);
+    assert.equal(messages.at(-1), 'El proveedor de IA no pudo generar el plan.');
+  } finally {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+  }
+});
+
 test('la cámara etiqueta los movimientos y refleja ambos joysticks', () => {
   const badge = { dataset: {}, textContent: '' };
   const previousDocument = globalThis.document;

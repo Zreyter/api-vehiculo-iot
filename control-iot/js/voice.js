@@ -1,8 +1,26 @@
+import { bucketDirections, vehicleDirections } from './joystick.js';
+
 const wakeWord = /^kiwi(?=$|[\s\p{P}])/iu;
 const punctuation = /^[\s\p{P}]+|[\s\p{P}]+$/gu;
 const stopCommand = /^(?:para|parar|detente|alto|stop)(?:\s+por favor)?$/iu;
 const commandWindowMs = 7000;
 const restartDelayMs = 300;
+
+export function fallbackVoicePlan(phrase) {
+  const command = phrase.toLowerCase().replace(punctuation, '').replace(/\s+/gu, ' ');
+  if (['avanza', 'avanza adelante', 'avanza hacia adelante', 'avanza hacia delante'].includes(command)) {
+    return { pasos: [{ codigo: vehicleDirections.up, duracion_ms: 400, pausa_ms: 150 }] };
+  }
+  if (['saluda', 'saluda con la pala'].includes(command)) {
+    const { left, right } = bucketDirections;
+    return { pasos: [
+      { codigo: left, duracion_ms: 250, pausa_ms: 150 },
+      { codigo: right, duracion_ms: 500, pausa_ms: 150 },
+      { codigo: left, duracion_ms: 250, pausa_ms: 150 },
+    ] };
+  }
+  return null;
+}
 
 export class KiwiListener {
   constructor({ Speech, onStatus, onCommand, onStop, onError }) {

@@ -18,7 +18,7 @@
     <nav class="main-nav" aria-label="Páginas">
       <a href="./" aria-current="page">Control</a><a href="./monitor.html">Monitor</a>
     </nav>
-    <a id="install" class="subtle apk-download" href="./assets/downloads/Mando-IoT-2.7.apk"
+    <a id="install" class="subtle apk-download" href="./assets/downloads/Mando-IoT-2.8.apk"
       download hidden aria-label="Instalar Mando IoT para Android">Instalar</a>
     <button id="stop" type="button" class="danger stop-control" hidden>Parar</button>
   </header>
@@ -27,20 +27,24 @@
       <h1>Control del vehículo</h1>
       <p class="status" id="status" data-state="offline" aria-live="polite">Sin conexión</p>
     </div>
+    <svg class="excavator-paints" width="0" height="0" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="paint" x2="0" y2="1">
+          <stop stop-color="#ffd681"/>
+          <stop offset="1" stop-color="#e3a132"/>
+        </linearGradient>
+        <linearGradient id="glass" x2="1" y2="1">
+          <stop stop-color="#71958a"/>
+          <stop offset="1" stop-color="#2c4a42"/>
+        </linearGradient>
+      </defs>
+    </svg>
     <div class="login-welcome">
       <svg xmlns="http://www.w3.org/2000/svg" class="welcome-excavator" width="440" height="216" viewBox="0 0 440 216" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <defs>
           <linearGradient id="sky" x2="0" y2="1">
             <stop stop-color="#162c25"/>
             <stop offset="1" stop-color="#355346"/>
-          </linearGradient>
-          <linearGradient id="paint" x2="0" y2="1">
-            <stop stop-color="#ffd681"/>
-            <stop offset="1" stop-color="#e3a132"/>
-          </linearGradient>
-          <linearGradient id="glass" x2="1" y2="1">
-            <stop stop-color="#71958a"/>
-            <stop offset="1" stop-color="#2c4a42"/>
           </linearGradient>
           <pattern id="survey-grid" width="24" height="24" patternUnits="userSpaceOnUse">
             <path d="M24 0H0V24" fill="none" stroke="#e6eee2" stroke-opacity=".08"/>
@@ -57,7 +61,7 @@
         <path d="M19 196h27m13 0h16m286 0h26m12 0h19m-397-9h10m371-3h18" stroke="#91a38b" stroke-opacity=".35" stroke-linecap="round"/>
         <ellipse cx="220" cy="188" rx="144" ry="9" fill="#142922"/>
 
-        <g stroke="#182d26" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <g id="welcome-machine" stroke="#182d26" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
           <g class="digger-arm">
             <path d="m149 136-24-45-23-21-13 9 22 24 14 45Z" fill="url(#paint)"/>
             <path d="m99 72-14 7-25 64 15 8 27-52 9-11Z" fill="url(#paint)"/>
@@ -119,6 +123,10 @@
       </form>
     </div>
     <section id="controls" class="console" hidden>
+      <svg class="menu-excavator" width="160" height="68" viewBox="24 39 360 154" aria-hidden="true">
+        <ellipse cx="215" cy="188" rx="126" ry="4" fill="#162c25" opacity=".18"/>
+        <use href="#welcome-machine"/>
+      </svg>
       <section class="toolbar card" aria-labelledby="mode-heading">
         <div class="toolbar-top">
           <div class="toolbar-heading">

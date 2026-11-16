@@ -227,6 +227,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
   margin: 0;
 }
 .control-page .status { padding-block: 3px; }
+.excavator-paints { position: absolute; }
 .login-welcome { display: none; }
 .login-welcome:has(.login:not([hidden])) {
   display: grid;
@@ -280,6 +281,31 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
 .control-page .shell:has(.login-welcome .login:not([hidden])) {
   grid-template-rows: auto auto auto;
   align-content: start;
+}
+.menu-excavator { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .control-page .console.entered-with-code { animation: menu-reveal 380ms ease-out; }
+  .entered-with-code > .menu-excavator {
+    display: block;
+    position: fixed;
+    inset-inline-end: max(24px, calc((100% - 1010px) / 2));
+    bottom: calc(48px + env(safe-area-inset-bottom));
+    width: clamp(108px, 25vw, 160px);
+    height: auto;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 1;
+    animation: excavator-arrival 760ms ease-out;
+  }
+  @keyframes menu-reveal {
+    from { opacity: .72; }
+    to { opacity: 1; }
+  }
+  @keyframes excavator-arrival {
+    0% { opacity: 0; transform: translateX(-62px) scale(.9); }
+    22%, 64% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(18px) scale(1); }
+  }
 }
 .control-page .console {
   display: grid;

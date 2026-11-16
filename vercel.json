@@ -6,37 +6,42 @@
   "redirects": [
     {
       "source": "/assets/downloads/Mando-IoT-2.0.apk",
-      "destination": "/assets/downloads/Mando-IoT-2.7.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.8.apk",
       "permanent": false
     },
     {
       "source": "/assets/downloads/Mando-IoT-2.1.apk",
-      "destination": "/assets/downloads/Mando-IoT-2.7.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.8.apk",
       "permanent": false
     },
     {
       "source": "/assets/downloads/Mando-IoT-2.2.apk",
-      "destination": "/assets/downloads/Mando-IoT-2.7.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.8.apk",
       "permanent": false
     },
     {
       "source": "/assets/downloads/Mando-IoT-2.3.apk",
-      "destination": "/assets/downloads/Mando-IoT-2.7.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.8.apk",
       "permanent": false
     },
     {
       "source": "/assets/downloads/Mando-IoT-2.4.apk",
-      "destination": "/assets/downloads/Mando-IoT-2.7.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.8.apk",
       "permanent": false
     },
     {
       "source": "/assets/downloads/Mando-IoT-2.5.apk",
-      "destination": "/assets/downloads/Mando-IoT-2.7.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.8.apk",
       "permanent": false
     },
     {
       "source": "/assets/downloads/Mando-IoT-2.6.apk",
-      "destination": "/assets/downloads/Mando-IoT-2.7.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.8.apk",
+      "permanent": false
+    },
+    {
+      "source": "/assets/downloads/Mando-IoT-2.7.apk",
+      "destination": "/assets/downloads/Mando-IoT-2.8.apk",
       "permanent": false
     }
   ],

@@ -285,7 +285,8 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
 }
 .menu-arrival { display: none; }
 .control-page .console:not([hidden]) > .menu-arrival {
-  --arrival-duration: 1.1s;
+  --arrival-duration: 2.2s;
+  --arrival-travel: clamp(52px, 19vw, 100px);
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -297,22 +298,22 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
   visibility: hidden;
   animation: menu-crossfade var(--arrival-duration) ease-out;
 }
-.menu-excavator { display: block; width: min(240px, 60%, 56dvh); height: auto; }
+.menu-excavator {
+  display: block;
+  width: min(240px, 54%, 56dvh);
+  height: auto;
+  animation: excavator-arrival var(--arrival-duration) ease-in-out;
+}
 @keyframes menu-crossfade {
-  0%, 20% { opacity: 1; visibility: visible; }
+  0%, 66% { opacity: 1; visibility: visible; }
   100% { opacity: 0; visibility: hidden; }
 }
-@media (prefers-reduced-motion: no-preference) {
-  .menu-arrival > .menu-excavator {
-    animation: excavator-arrival var(--arrival-duration) cubic-bezier(.28, 0, .33, 1);
-  }
-  @keyframes excavator-arrival {
-    from { transform: translateX(clamp(-88px, -20vw, -43px)); }
-    to { transform: translateX(clamp(52px, 21vw, 96px)); }
-  }
+@keyframes excavator-arrival {
+  from { transform: translateX(calc(-1 * var(--arrival-travel))); }
+  62%, 100% { transform: translateX(var(--arrival-travel)); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .control-page .console:not([hidden]) > .menu-arrival { --arrival-duration: .55s; }
+  .control-page .console:not([hidden]) > .menu-arrival { --arrival-travel: 26px; }
 }
 .control-page .console {
   display: grid;

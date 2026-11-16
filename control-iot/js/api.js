@@ -16,6 +16,13 @@ function saveCode(storage, code) {
   } catch { return false; }
 }
 
+function offerPasswordSave(username, password) {
+  if (!window.PasswordCredential || !navigator.credentials?.store) return;
+  try {
+    void navigator.credentials.store(new PasswordCredential({ id: username, password })).catch(() => {});
+  } catch {}
+}
+
 /** Envía catálogo por HTTPS y control, observación y confirmaciones por WSS. */
 export class VehicleApi extends EventTarget {
   constructor() {
@@ -111,16 +118,25 @@ export class VehicleApi extends EventTarget {
 export class AccessForm {
   constructor(api, role, content, onConnect = async () => {}) {
     const form = document.querySelector('#login');
+    const formPosition = document.createComment('Acceso');
     const input = document.querySelector('#token');
     const remember = document.querySelector('#remember-code');
-    const submit = form.querySelector('button');
+    const submit = form.querySelector('button[type="submit"]');
+    const reveal = form.querySelector('.login-reveal');
     const status = document.querySelector('#status');
     const notice = document.querySelector('#notice');
     const swagger = document.querySelector('[data-swagger]');
     if (swagger) swagger.href = new URL('/docs', config.api);
-    const connect = async () => {
+    const showCode = visible => {
+      input.type = visible ? 'text' : 'password';
+      reveal.setAttribute('aria-pressed', String(visible));
+      reveal.textContent = visible ? 'Ocultar' : 'Mostrar';
+    };
+    reveal.addEventListener('click', () => showCode(input.type === 'password'));
+    const connect = async (enteredByUser = false) => {
       if (submit.disabled || !form.checkValidity()) return;
       submit.disabled = true;
+      showCode(false);
       notice.textContent = '';
       status.textContent = 'Conectando…';
       const code = input.value;
@@ -133,7 +149,11 @@ export class AccessForm {
           remember.checked = false;
           notice.textContent = 'El navegador no pudo recordar el código.';
         }
-        form.hidden = true;
+        if (enteredByUser) {
+          input.value = code;
+          offerPasswordSave(form.elements.username.value, code);
+        }
+        form.replaceWith(formPosition);
         content.hidden = false;
         status.textContent = 'Conectado';
       } catch (error) {
@@ -147,21 +167,26 @@ export class AccessForm {
     api.addEventListener('disconnect', () => {
       status.textContent = 'Sin conexión';
       content.hidden = true;
-      form.hidden = false;
+      formPosition.replaceWith(form);
     });
-    form.addEventListener('submit', event => { event.preventDefault(); connect(); });
+    form.addEventListener('submit', event => { event.preventDefault(); void connect(true); });
     remember.addEventListener('change', () => { if (!remember.checked) saveCode('localStorage', ''); });
     document.querySelector('#logout').addEventListener('click', () => {
       saveCode('sessionStorage', '');
       saveCode('localStorage', '');
       remember.checked = false;
       input.value = '';
+      showCode(false);
       api.close();
     });
     window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
     const saved = readCode('localStorage');
     remember.checked = Boolean(saved);
-    input.value = readCode('sessionStorage') || saved;
-    if (input.value) connect();
+    submit.disabled = false;
+    const remembered = readCode('sessionStorage') || saved;
+    if (remembered) {
+      input.value = remembered;
+      void connect();
+    }
   }
 }

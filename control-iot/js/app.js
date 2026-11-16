@@ -362,12 +362,5 @@ class DrivePage {
 
 new DrivePage();
 
+$('install').hidden = !(navigator.userAgentData?.platform === 'Android' || /\bAndroid\b/i.test(navigator.userAgent));
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
-window.addEventListener('beforeinstallprompt', event => {
-  event.preventDefault();
-  $('install').hidden = false;
-  $('install').onclick = async () => {
-    await event.prompt();
-    $('install').hidden = true;
-  };
-});

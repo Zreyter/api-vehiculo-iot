@@ -56,7 +56,35 @@ h1 { font-size: clamp(1.65rem, 4.5vw, 2.7rem); margin: 0 0 12px; letter-spacing:
 h2 { font-size: 1.1rem; margin: 0; }
 .status { border-radius: 999px; color: var(--green); background: #e0e9db; padding: 6px 12px; margin: 0 0 12px; font-weight: 650; }
 .card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: clamp(12px, 2vw, 22px); }
-.login, .toolbar, .demo { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.toolbar, .demo { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.login {
+  width: min(100%, 460px);
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 13px 10px;
+  padding: clamp(14px, 4vw, 22px);
+  background: var(--paper);
+  box-shadow: 0 5px 22px #162c2510;
+}
+.login-field { display: grid; min-width: 0; gap: 6px; }
+.login-field > label { color: var(--green); }
+.login-code { position: relative; }
+.login-code input { width: 100%; min-height: 48px; padding-inline-end: 5.4rem; }
+.login-code input::placeholder { color: var(--muted); }
+.login-reveal {
+  position: absolute;
+  inset: 5px 5px 5px auto;
+  min-height: 0;
+  border: 0;
+  padding: 0 10px;
+  background: #eef2e9;
+  color: var(--green);
+  font-size: .8rem;
+}
+.login-connect { min-height: 48px; }
+.login .remember-code { grid-column: 1 / -1; font-size: .84rem; color: var(--muted); }
 .remember-code { display: inline-flex; align-items: center; gap: 6px; }
 label, summary { font-weight: 650; }
 button, input, select {
@@ -112,7 +140,10 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
   .stick-grid { gap: 7px; }
   .stick-label, .stick-legend { justify-content: center; }
   .stick-legend { font-size: .73rem; gap: 4px 7px; }
-  .login input[type="password"] { width: 100%; }
+}
+@media (max-width: 380px) {
+  .login { grid-template-columns: minmax(0, 1fr); }
+  .login-connect { width: 100%; }
 }
 
 /* Control ocupa el alto disponible del navegador y de la app instalada. */
@@ -167,6 +198,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
 .control-page .shell:has(.login:not([hidden])) {
   grid-template-rows: auto auto auto;
   align-content: start;
+  overflow-y: auto;
 }
 .control-page .console {
   min-height: 0;

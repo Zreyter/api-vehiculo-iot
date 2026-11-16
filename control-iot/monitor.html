@@ -16,10 +16,18 @@
   </header>
   <main class="shell">
     <div class="title"><h1>Monitoreo WebSocket</h1><p class="status" id="status" aria-live="polite">Sin conexión</p></div>
-    <form class="card login" id="login">
-      <label for="token">Código de acceso</label>
-      <input id="token" type="password" required minlength="8" maxlength="8" pattern="[A-Za-z0-9]{8}" autocomplete="off" placeholder="8 caracteres">
-      <button type="submit" class="primary">Conectar</button>
+    <form class="card login" id="login" method="post" autocomplete="on">
+      <input type="hidden" name="username" autocomplete="username" value="Excavadora IoT">
+      <div class="login-field">
+        <label for="token">Código de acceso</label>
+        <div class="login-code">
+          <input id="token" name="password" type="password" autocomplete="current-password"
+            required minlength="8" maxlength="8" pattern="[A-Za-z0-9]{8}" placeholder="8 caracteres"
+            autocapitalize="none" spellcheck="false" enterkeyhint="go">
+          <button type="button" class="login-reveal" aria-controls="token" aria-pressed="false">Mostrar</button>
+        </div>
+      </div>
+      <button type="submit" class="primary login-connect" disabled>Conectar</button>
       <label class="remember-code"><input id="remember-code" type="checkbox"> Recordar código en este dispositivo</label>
     </form>
     <div id="monitor" hidden>

@@ -49,10 +49,7 @@ export class VehicleApi extends EventTarget {
     const response = await fetch(url, { ...options, headers, cache: 'no-store' });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      throw Object.assign(
-        new Error(typeof body.detail === 'string' ? body.detail : 'Error HTTP ' + response.status),
-        { status: response.status },
-      );
+      throw new Error(typeof body.detail === 'string' ? body.detail : 'Error HTTP ' + response.status);
     }
     return response.json();
   }

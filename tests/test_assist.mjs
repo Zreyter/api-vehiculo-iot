@@ -332,47 +332,41 @@ test('Kiwi ejecuta desde el panel y Parar descarta respuestas tardías', async (
   }
 });
 
-test('Kiwi recupera el saludo y avance de un fallo del proveedor sin interpretar frases compuestas', async () => {
+test('Kiwi exige un plan válido de IA para saludar y avanzar', async () => {
   const previousDocument = globalThis.document;
   const button = { setAttribute() {} };
   globalThis.document = { getElementById: () => button };
-  const sent = [];
+  const requested = [];
   const messages = [];
-  let status = 502;
+  const failure = 'El proveedor de IA no pudo generar el plan.';
+  let invalidPlan = false;
   const drive = {
     hasControlConnection: () => true,
     canUseAssist: () => true,
     commands: new Map([[1, 1], [2, 2], [4, 4]]),
     api: {
-      async post() {
-        throw Object.assign(new Error('El proveedor de IA no pudo generar el plan.'), { status });
+      async post(path, { frase }) {
+        assert.equal(path, '/ia/plan');
+        requested.push(frase);
+        if (invalidPlan) return { pasos: [{ codigo: 2, duracion_ms: 0, pausa_ms: 150 }] };
+        throw new Error(failure);
       },
     },
-    send(code, { duration, stillWanted }) {
-      assert.equal(stillWanted(), true);
-      sent.push([code, duration]);
-      return { orden_enviada: true };
-    },
+    send: () => assert.fail('Kiwi envió una orden sin plan válido.'),
     show: message => messages.push(message),
     reflectAssistMovement() {},
     release() {},
   };
   try {
     const panel = new AssistPanel(drive);
-    await panel.execute('¡Saluda!');
-    await panel.execute('Avanza hacia adelante');
-    assert.deepEqual(sent, [
-      [1, 250], [0, undefined], [4, 500], [0, undefined], [1, 250], [0, undefined],
-      [2, 400], [0, undefined],
-    ]);
-    await panel.execute('avanza hacia adelante y gira');
-    await panel.execute('no avanza hacia adelante');
-    status = 422;
     await panel.execute('saluda');
-    status = 401;
+    assert.equal(messages.at(-1), failure);
     await panel.execute('avanza hacia adelante');
-    assert.equal(sent.length, 8);
-    assert.equal(messages.at(-1), 'El proveedor de IA no pudo generar el plan.');
+    assert.equal(messages.at(-1), failure);
+    invalidPlan = true;
+    await panel.execute('avanza hacia adelante');
+    assert.equal(messages.at(-1), 'El plan contiene un movimiento o duración fuera del contrato.');
+    assert.deepEqual(requested, ['saluda', 'avanza hacia adelante', 'avanza hacia adelante']);
   } finally {
     if (previousDocument === undefined) delete globalThis.document;
     else globalThis.document = previousDocument;

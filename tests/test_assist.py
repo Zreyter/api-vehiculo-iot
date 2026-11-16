@@ -66,6 +66,28 @@ class VoicePlanTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json(), plan)
 
+    def test_provider_quota_is_reported_separately_from_rate_limits(self):
+        cases = [
+            ({"type": "insufficient_quota", "code": None}, 503, "alcanzó su cuota"),
+            ({"type": "invalid_request_error", "code": "billing_hard_limit_reached"}, 503, "alcanzó su cuota"),
+            ({"code": "credit_balance_exhausted"}, 503, "alcanzó su cuota"),
+            ({"type": "rate_limit_exceeded"}, 502, "no pudo generar el plan"),
+        ]
+        with self.client("fake-key") as client:
+            for error, status, detail in cases:
+                transport = httpx.MockTransport(lambda _: httpx.Response(
+                    429, json={"error": {**error, "message": "detalle privado"}},
+                ))
+                with self.subTest(error=error), patch(
+                    "app.api.assist_routes.httpx.AsyncClient",
+                    return_value=httpx.AsyncClient(transport=transport),
+                ), self.assertLogs("app.api.assist_routes", "WARNING") as logs:
+                    response = client.post("/ia/plan", headers=self.headers, json={"frase": "saluda"})
+                    self.assertEqual(response.status_code, status)
+                    self.assertIn(detail, response.json()["detail"])
+                    self.assertNotIn("pasos", response.json())
+                    self.assertNotIn("detalle privado", logs.output[0])
+
     def test_model_refusal_or_invalid_movements_are_rejected(self):
         plans = [
             ({"pasos": []}, 422),

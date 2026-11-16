@@ -1,3 +1,4 @@
+import logging
 from random import choice
 from typing import Literal, Self
 
@@ -9,6 +10,7 @@ from app.core.errors import ServiceError
 from app.core.security import require_control_token
 from app.models.device import MAX_TIMED_MOVEMENT_MS, MIN_TIMED_MOVEMENT_MS, TimedMovementDuration
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ia", tags=["IA"], dependencies=[Depends(require_control_token)])
 
 MAX_PLAN_MS = 30000
@@ -94,6 +96,20 @@ def parse_generated_plan(result: dict) -> GeneratedVoicePlan:
         raise ServiceError(502, "El proveedor de IA devolvió un plan inválido.") from exc
 
 
+def provider_quota_exhausted(response: httpx.Response) -> bool:
+    if response.status_code != 429:
+        return False
+    try:
+        payload = response.json()
+    except ValueError:
+        return False
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if not isinstance(error, dict):
+        return False
+    quota_errors = ("insufficient_quota", "billing_hard_limit_reached", "credit_balance_exhausted")
+    return error.get("type") in quota_errors or error.get("code") in quota_errors
+
+
 @router.post("/plan", response_model=VoicePlan)
 async def voice_plan(body: VoiceRequest, request: Request) -> VoicePlan:
     settings = request.app.state.settings
@@ -146,8 +162,19 @@ async def voice_plan(body: VoiceRequest, request: Request) -> VoicePlan:
                     f" La propuesta repitió el plan anterior. Empieza con otro movimiento distinto de {previous[0]} "
                     "y cambia la secuencia sin omitir lo que pidió el operador."
                 )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        if provider_quota_exhausted(exc.response):
+            logger.warning("Kiwi: proveedor HTTP %d, cuota insuficiente.", status)
+            raise ServiceError(
+                503, "La API de IA alcanzó su cuota. Revisa el saldo y los límites del proyecto de OpenAI."
+            ) from exc
+        logger.warning("Kiwi: proveedor HTTP %d.", status)
+        raise ServiceError(502, "El proveedor de IA no pudo generar el plan.") from exc
     except httpx.TimeoutException as exc:
+        logger.warning("Kiwi: el proveedor agotó el tiempo de espera.")
         raise ServiceError(504, "El planificador tardó demasiado. Intenta de nuevo.") from exc
     except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Kiwi: fallo de comunicación con el proveedor (%s).", type(exc).__name__)
         raise ServiceError(502, "El proveedor de IA no pudo generar el plan.") from exc
     raise ServiceError(502, "Kiwi repitió la rutina. Pídele un ritmo o un inicio distinto.")

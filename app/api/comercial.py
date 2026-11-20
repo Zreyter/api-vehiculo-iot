@@ -47,8 +47,10 @@ def resumen(request: Request, token: Token):
 
 
 @router.get("/unidades", response_model=list[UnidadAdministrada])
-def unidades(request: Request, token: Token, buscar: Busqueda = "", inicio: Inicio = 0, limite: Limite = 50):
-    return request.app.state.comercial.unidades(token, buscar, inicio, limite)
+async def unidades(request: Request, token: Token, buscar: Busqueda = "", inicio: Inicio = 0, limite: Limite = 50):
+    app = request.app.state
+    rows = await asyncio.to_thread(app.comercial.unidades, token, buscar, inicio, limite)
+    return [{**u,"conectado":app.device_service.status(u["id_vehiculo"])["conectado"]} for u in rows]
 
 
 @router.get("/modelos", response_model=list[ModeloGuardado])

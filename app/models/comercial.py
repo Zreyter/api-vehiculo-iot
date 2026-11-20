@@ -35,6 +35,8 @@ class Unidad(BaseModel):
 
 
 class UnidadAdministrada(Unidad):
+    id_modelo: int | None
+    conectado: bool = False
     id_usuario: int | None
     propietario: str | None
 

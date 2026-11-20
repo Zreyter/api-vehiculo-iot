@@ -40,6 +40,7 @@ class DemoService:
         self.coordinator = coordinator
         self.closing = False
         self.devices = devices
+        self.verificar_demo = None
 
     @staticmethod
     def _event(kind: str, run: DemoRun, message: str | None = None) -> Event:
@@ -73,6 +74,8 @@ class DemoService:
                 raise ServiceError(409, "Desactiva la conducción WiFi y espera sus registros antes de iniciar una DEMO.")
             if vehicle_id in self.coordinator.active:
                 raise ServiceError(409, "Ya hay una DEMO activa para este vehículo.")
+            if self.verificar_demo:
+                await asyncio.to_thread(self.verificar_demo, vehicle_id, demo_id)
             steps, state = await asyncio.to_thread(self.repository.demo_plan, vehicle_id, demo_id)
             if physical:
                 if not continue_without_device and (not self.devices or not self.devices.status(vehicle_id)["listo"]):

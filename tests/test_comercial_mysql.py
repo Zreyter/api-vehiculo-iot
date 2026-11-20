@@ -5,6 +5,7 @@ import secrets
 import unittest
 from pathlib import Path
 from uuid import uuid4
+from unittest.mock import AsyncMock
 
 import mysql.connector
 from fastapi.testclient import TestClient
@@ -13,6 +14,7 @@ from starlette.websockets import WebSocketDisconnect
 from tests.fakes import MemoryRepository
 from app.core.claves_comerciales import proteger
 from app.core.config import Settings
+from app.core.errors import ServiceError
 from app.main import create_app
 
 
@@ -31,11 +33,13 @@ class ComercialMySQL(unittest.TestCase):
         cls.cur.execute("CREATE DATABASE " + schema + " CHARACTER SET utf8mb4")
         cls.addClassCleanup(cls.cur.execute, "DROP DATABASE " + schema)
         cls.cur.execute("USE " + schema)
-        cls.cur.execute("CREATE TABLE vehiculos(id_vehiculo INT PRIMARY KEY, nombre VARCHAR(80), modelo VARCHAR(80),activo BOOL)")
-        cls.cur.execute("CREATE TABLE demos(id_demo INT PRIMARY KEY,activo BOOL)")
+        cls.cur.execute("CREATE TABLE vehiculos(id_vehiculo INT PRIMARY KEY AUTO_INCREMENT, nombre VARCHAR(80), modelo VARCHAR(80),activo BOOL)")
+        cls.cur.execute("CREATE TABLE demos(id_demo INT PRIMARY KEY AUTO_INCREMENT,id_vehiculo INT,nombre VARCHAR(80),descripcion VARCHAR(255),activo BOOL DEFAULT TRUE)")
+        cls.cur.execute("CREATE TABLE comandos(id_comando INT PRIMARY KEY,id_vehiculo INT,nombre VARCHAR(60),codigo INT,activo BOOL)")
+        cls.cur.execute("CREATE TABLE demo_movimientos(id_demo_movimiento INT PRIMARY KEY AUTO_INCREMENT,id_demo INT,id_comando INT,orden INT,duracion_ms INT,pausa_ms INT)")
         cls.cur.execute("INSERT INTO vehiculos VALUES(47,'Unidad 47','Excavadora',1)")
         migrations = Path(__file__).resolve().parents[1] / "migrations/4.3"
-        for name in ("001_catalogo.sql", "002_unidades_existentes.sql", "002_unidades_existentes.sql", "004_propiedad.sql", "004_propiedad.sql"):
+        for name in ("001_catalogo.sql", "002_unidades_existentes.sql", "002_unidades_existentes.sql", "004_propiedad.sql", "004_propiedad.sql", "005_demos_exhibicion.sql"):
             statements = "\n".join(line for line in (migrations/name).read_text(encoding="utf-8").splitlines()
                                    if not line.lstrip().startswith("--"))
             for statement in statements.split(";"):
@@ -170,6 +174,66 @@ class ComercialMySQL(unittest.TestCase):
             self.assertEqual(asignar(admin,None,uid_b),204)
             self.cur.execute("SELECT anterior,nuevo FROM comercial_cambios_propietario ORDER BY id_evento")
             self.assertEqual(self.cur.fetchall(),[(None,uid_a),(uid_a,uid_b),(uid_b,None)])
+
+    def test_unidades_demos_privadas_y_exhibicion(self):
+        admin, comprador = self.login(), self.login("usuario")
+        self.cur.execute("SELECT id_usuario FROM comercial_usuarios WHERE correo='usuario@ejemplo.test'")
+        usuario = self.cur.fetchone()[0]
+        self.cur.execute("SELECT id_modelo FROM comercial_modelos WHERE nombre='Excavadora'")
+        modelo = self.cur.fetchone()[0]
+        cuerpo = {"nombre":"Unidad de taller","id_modelo":modelo,"estado":"disponible"}
+        nueva = self.client.post("/comercial/unidades",headers=admin,json=cuerpo)
+        self.assertEqual(nueva.status_code,201,nueva.text)
+        unidad = nueva.json()["id_vehiculo"]
+        ruta = f"/comercial/unidades/{unidad}"
+        self.cur.execute("INSERT INTO comandos VALUES(410,%s,'Pala',1,1)",(unidad,))
+        confirmado = self.client.put(ruta+"/propietario",headers=admin,json={"id_usuario":usuario,"anterior":None})
+        self.assertEqual(confirmado.status_code,204,confirmado.text)
+        demo = {"nombre":"Privada","pasos":[{"id_comando":410,"duracion_ms":400,"pausa_ms":200}]}
+        creada = self.client.post(ruta+"/secuencias",headers=comprador,json=demo)
+        self.assertEqual(creada.status_code,201,creada.text)
+        endpoint = ruta+"/secuencias/"+str(creada.json()["id_demo"])
+        self.assertEqual(self.client.get(endpoint,headers=comprador).json(),demo["pasos"])
+        self.assertEqual(self.client.put(endpoint,headers=admin,json=demo).status_code,403)
+        self.assertEqual(self.client.put(endpoint,headers=comprador,json={**demo,"pasos":[{**demo["pasos"][0],"id_comando":401}]}).status_code,422)
+        self.assertEqual(self.client.put(ruta,headers=admin,json={**cuerpo,"estado":"inactivo"}).status_code,409)
+        self.assertEqual(self.client.put(ruta+"/propietario",headers=admin,json={"id_usuario":None,"anterior":usuario}).status_code,204)
+        self.assertEqual(self.client.get(endpoint,headers=comprador).status_code,403)
+        self.assertEqual(self.client.put(ruta,headers=admin,json={**cuerpo,"estado":"exhibicion"}).status_code,200)
+        repo = self.client.app.state.comercial
+        reserva, movimientos = repo.reservar(unidad,45,(1,4))
+        self.assertEqual(movimientos,{1:"Pala"})
+        with self.assertRaises(ServiceError) as exc:
+            repo.reservar(unidad,45,(1,4))
+        self.assertEqual(exc.exception.status_code,409)
+        repo.finalizar_exhibicion(reserva,"desconexion")
+        otra,_ = repo.reservar(unidad,45,(1,4))
+        self.assertNotEqual(reserva,otra)
+        repo.finalizar_exhibicion(otra,"detener")
+        self.assertEqual(self.client.get("/exhibicion/catalogo").json()["habilitada"],False)
+        app = create_app(self.settings.model_copy(update={"exhibicion_habilitada":True}))
+        dispositivo = app.state.device_service
+        dispositivo.status = lambda _: {"listo":True,"demo_temporizada":True,"control_ocupado":False}
+        dispositivo.acquire = AsyncMock(return_value={"lease_id":"placa-de-prueba"})
+        dispositivo.command = AsyncMock(return_value={"orden_enviada":True})
+        dispositivo.stop = AsyncMock(return_value={})
+        ws = f"/exhibicion/ws/{unidad}"
+        origin = {"origin":"http://testserver"}
+        with TestClient(app) as cliente:
+            with cliente.websocket_connect(ws,headers=origin) as invitado:
+                self.assertEqual(invitado.receive_json()["tipo"],"inicio")
+                with cliente.websocket_connect(ws,headers=origin) as ocupado:
+                    self.assertEqual(ocupado.receive_json()["tipo"],"error")
+                invitado.send_json({"codigo":1})
+                self.assertEqual(invitado.receive_json(),{"tipo":"orden","enviada":True})
+                invitado.send_json({"accion":"detener"})
+                self.assertEqual(invitado.receive()["type"],"websocket.close")
+            dispositivo.command.assert_awaited_once_with(unidad,"placa-de-prueba",1,demo_ms=200,record=False)
+            dispositivo.stop.assert_awaited_once_with(unidad,"placa-de-prueba",reason="fin_exhibicion")
+        self.assertEqual(self.client.get("/salud").json(),{"api":"disponible","rds":"disponible"})
+        self.assertEqual(self.client.get("/comercial/auditoria",headers=comprador).status_code,403)
+        self.assertIn("alta_demo",{row["accion"] for row in self.client.get("/comercial/auditoria",headers=admin).json()})
+        self.assertEqual(self.client.put(ruta,headers=admin,json={**cuerpo,"estado":"inactivo"}).status_code,200)
 
     def test_vencimiento_y_baja_con_unidades_multiples(self):
         app = create_app(self.settings, MemoryRepository())

@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,7 +10,9 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, JSONResponse
 
 from app.api.comercial import router as comercial_router
-from app.repositories.comercial import ComercialRepository
+from app.api.operacion_comercial import router as operacion_router
+from app.api.exhibicion import router as exhibicion_router
+from app.repositories.operacion_comercial import OperacionComercial
 from app.api.routes import router
 from app.api.catalog_routes import router as catalog_router
 from app.api.panel_routes import router as panel_router
@@ -91,7 +94,12 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
 
     if settings.comercial_habilitado:
         application.state.permisos = PermisosOperativos()
-        application.state.comercial = ComercialRepository(database)
+        application.state.comercial = OperacionComercial(database)
+        application.state.salud_lock = asyncio.Lock()
+        application.state.salud_vence = 0
+        demos.verificar_demo = catalog.verificar_demo = application.state.comercial.demo_privada
+        application.include_router(operacion_router)
+        application.include_router(exhibicion_router)
         application.include_router(comercial_router)
 
         @application.exception_handler(RequestValidationError)

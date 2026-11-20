@@ -51,7 +51,7 @@ class ComercialRepository:
             actor = cur.fetchone()
             if not actor:
                 raise ServiceError(401, "La sesión comercial terminó. Vuelve a ingresar.")
-            if actor["rol"] != rol:
+            if rol is not None and actor["rol"] != rol:
                 raise ServiceError(403, "Esta cuenta no tiene permiso para la operación.")
             yield cur, actor
 
@@ -140,7 +140,7 @@ class ComercialRepository:
         with self.administrador(token) as (cur, _):
             cur.execute("""SELECT v.id_vehiculo,v.nombre,COALESCE(m.nombre,v.modelo,'') modelo,
                                   IF(v.activo=0,'inactivo',COALESCE(u.estado,'sin_clasificar')) estado,
-                                  p.id_usuario, c.nombre propietario
+                                  p.id_usuario, c.nombre propietario,u.id_modelo
                            FROM vehiculos v LEFT JOIN comercial_unidades u USING(id_vehiculo)
                            LEFT JOIN comercial_modelos m USING(id_modelo)
                            LEFT JOIN comercial_propiedad p USING(id_vehiculo)

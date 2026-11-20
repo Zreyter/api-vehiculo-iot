@@ -1,7 +1,7 @@
 import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
 
 from app.core.security import require_control_token
 from app.models.catalog import (
@@ -49,6 +49,8 @@ async def update_vehicle(id_vehiculo: ObjectId, body: VehicleUpdate, request: Re
 
 @router.delete("/vehiculos/{id_vehiculo}", status_code=204, tags=["Administración: vehículos"], summary="Eliminar vehículo", description=DELETE_NOTE)
 async def delete_vehicle(id_vehiculo: ObjectId, request: Request):
+    if request.app.state.settings.comercial_habilitado:
+        raise HTTPException(409, "Da de baja la unidad desde Administración para conservar su historial.")
     await request.app.state.catalog_service.write("delete_vehicle", id_vehiculo)
     return Response(status_code=204)
 

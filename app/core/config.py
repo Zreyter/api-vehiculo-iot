@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     mysql_password: SecretStr = SecretStr("")
     mysql_database: str = "vehiculo_iot"
     mysql_ssl_ca: str = ""
+    comercial_habilitado: bool = False
     control_token: SecretStr = SecretStr("")
     device_token: SecretStr = SecretStr("")
     browser_origins: list[str] = Field(default_factory=list)

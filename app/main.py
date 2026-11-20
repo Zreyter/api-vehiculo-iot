@@ -3,9 +3,13 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, JSONResponse
 
+from app.api.comercial import router as comercial_router
+from app.repositories.comercial import ComercialRepository
 from app.api.routes import router
 from app.api.catalog_routes import router as catalog_router
 from app.api.panel_routes import router as panel_router
@@ -57,7 +61,7 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.browser_origins,
-        allow_methods=["GET", "POST", "DELETE"],
+        allow_methods=["GET", "POST", "DELETE"] + (["PUT"] if settings.comercial_habilitado else []),
         allow_headers=["Authorization", "Content-Type", "ngrok-skip-browser-warning"],
     )
 
@@ -83,6 +87,17 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
     @application.exception_handler(ServiceError)
     async def service_error(request: Request, exc: ServiceError):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+    if settings.comercial_habilitado:
+        application.state.comercial = ComercialRepository(database)
+        application.include_router(comercial_router)
+
+        @application.exception_handler(RequestValidationError)
+        async def errores_de_entrada(request: Request, exc: RequestValidationError):
+            if request.url.path.startswith("/comercial/"):
+                # El error estándar puede incluir la contraseña en inputs de formularios inválidos.
+                return JSONResponse(status_code=422, content={"detail": "Revisa los campos y sus límites."})
+            return await request_validation_exception_handler(request, exc)
 
     application.include_router(router)
     application.include_router(catalog_router)

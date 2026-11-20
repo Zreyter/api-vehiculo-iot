@@ -14,10 +14,10 @@ if (api.username || api.password || api.pathname !== '/' || api.search || api.ha
 const vehicleId = Number(process.env.IOT_VEHICLE_ID || 1);
 if (!Number.isSafeInteger(vehicleId) || vehicleId < 1) throw new Error('IOT_VEHICLE_ID inválido.');
 await mkdir(dist, { recursive: true });
-for (const name of ['index.html', 'monitor.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'assets']) {
+for (const name of ['index.html', 'monitor.html', 'administracion.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'assets']) {
   await cp(new URL(name, root), new URL(name, dist), { recursive: true });
 }
 await cp(new URL('../app/panel/drive-controller.js', root), new URL('js/drive-controller.js', dist));
 await writeFile(new URL('config.js', dist),
-  'export default ' + JSON.stringify({ api: api.origin, vehicleId }) + ';\n');
+  'export default ' + JSON.stringify({ api: api.origin, vehicleId, comercial: process.env.IOT_COMERCIAL_HABILITADO === '1' }) + ';\n');
 console.log('Frontend construido en ' + fileURLToPath(dist));

@@ -2,6 +2,7 @@ import config from '../config.js';
 import { Connectivity } from './connectivity.js';
 
 export const vehicleId = config.vehicleId;
+for (const link of document.querySelectorAll('[data-comercial]')) link.hidden = !config.comercial;
 const tokenKey = 'excavadora.access:' + new URL(config.api).origin;
 
 function readCode(storage) {
@@ -56,7 +57,7 @@ export class VehicleApi extends EventTarget {
       const response = await fetch(url, { ...options, signal: deadline.signal, headers, cache: 'no-store' });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        throw new Error(typeof body.detail === 'string' ? body.detail : 'Error HTTP ' + response.status);
+        throw Object.assign(new Error(typeof body.detail === 'string' ? body.detail : 'Error HTTP ' + response.status), { status: response.status });
       }
       if (response.status === 204) return null;
       return await response.json();

@@ -20,6 +20,7 @@ jobs:
       - name: Construir el sitio
         env:
           IOT_API_URL: ${{ vars.IOT_API_URL }}
+          IOT_COMERCIAL_HABILITADO: ${{ vars.IOT_COMERCIAL_HABILITADO }}
           IOT_VEHICLE_ID: ${{ vars.IOT_VEHICLE_ID }}
         run: node control-iot/build.mjs
       - uses: actions/upload-pages-artifact@v4

@@ -1,5 +1,9 @@
 # Excavadora IoT 2.0.5
 
+## Práctica 4.3 · Administración en desarrollo
+
+La rama `practica/4-3` integra acceso administrativo, inventario, catálogo de modelos y gestión de clientes sobre el mismo proyecto. La habilitación es independiente del mando y del monitor. Consulta el [diagnóstico, migraciones, pruebas y recuperación](docs/PRACTICA-4-3.md).
+
 ## Prácticas 4.1 y 4.2 · Control y Monitoreo
 
 En **Control**, el selector **Modo** inicia en **Carro físico**, que conserva la conducción directa, cámara, voz, pulsos y parada por WebSocket. Para la prueba académica elige **Práctica REST · solo registro**, activa **Manual** y usa los mismos joysticks o teclas. Este modo guarda órdenes reales en el historial de la API y ejecuta demos de registro. El botón Detener y la liberación del joystick usan el comando de parada del catálogo. La API debe tener una correspondencia única para la parada. Los comandos se identifican por su ID de catálogo. La página relaciona la respuesta HTTP con el evento WSS del mismo vehículo usando los campos y la marca temporal que devuelve el backend.

@@ -1,0 +1,16 @@
+.admin-page { grid-template-rows: auto 1fr auto; }
+.admin-page .shell { margin-block: 24px; }
+.admin-form, .admin-form label, .admin-tools label { display: grid; gap: .4rem; }
+.admin-form { width: min(100%, 28rem); gap: .9rem; margin: 1rem auto; }
+.admin-form label:has([type="checkbox"]) { display: flex; align-items: center; }
+.admin-form textarea { font: inherit; padding: .6rem; min-height: 5rem; }
+.admin-page dl { display: grid; grid-template-columns: repeat(auto-fit,minmax(125px,1fr)); gap: .5rem; }
+.admin-page dl div { border: 1px solid var(--line); background: var(--paper); padding: .65rem; border-radius: .6rem; }
+.admin-page dd { margin: 0; font-size: 1.5rem; font-weight: 700; }
+.admin-tools, .admin-tools form, .admin-pager { display: flex; flex-wrap: wrap; align-items: end; gap: .65rem; margin: 1rem 0; }
+.admin-tools input { width: min(100%,15rem); }
+.admin-pager { align-items: center; justify-content: end; }
+.admin-page dialog { border: 1px solid var(--line); border-radius: 1rem; width: min(28rem,95vw); }
+.admin-page dialog::backdrop { background: #162c2599; }
+.admin-page td { overflow-wrap: anywhere; }
+.admin-page [role="status"]:empty { margin: 0; }

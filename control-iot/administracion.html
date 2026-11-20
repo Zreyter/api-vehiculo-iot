@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#162c25">
+  <title>Administración | Excavadora IoT</title>
+  <link rel="icon" href="./assets/favicon/excavadora-192.png">
+  <link rel="stylesheet" href="./css/bootstrap-grid.min.css">
+  <link rel="stylesheet" href="./css/styles.css">
+  <link rel="stylesheet" href="./css/administracion.css">
+  <script type="module" src="./js/administracion.js"></script>
+</head>
+<body class="monitor-page admin-page">
+  <header class="header">
+    <a class="brand" href="./"><img src="./assets/favicon/excavadora-192.png" alt="">Excavadora IoT</a>
+    <nav class="main-nav" aria-label="Páginas"><a href="./">Control</a><a href="./monitor.html">Monitoreo</a><a href="./administracion.html" aria-current="page">Administración</a></nav>
+  </header>
+  <main class="shell">
+    <div class="section-title"><h1>Administración</h1><button type="button" id="salir" hidden>Salir</button></div>
+    <p id="aviso" role="status" aria-live="polite"></p>
+    <form id="acceso" class="card admin-form" hidden>
+      <h2>Acceso de administrador</h2>
+      <label>Correo electrónico<input name="correo" type="email" maxlength="254" autocomplete="username" required></label>
+      <label>Contraseña<input name="clave" type="password" maxlength="256" autocomplete="current-password" required></label>
+      <button class="primary">Ingresar</button>
+    </form>
+    <div id="inventario" hidden>
+      <section aria-label="Resumen del inventario"><dl id="metricas"></dl></section>
+      <section class="card">
+        <div class="section-title"><h2>Inventario comercial</h2><button id="nuevo" type="button">Nuevo modelo</button></div>
+        <div class="admin-tools">
+          <label>Mostrar<select id="vista"><option value="modelos">Modelos</option><option value="unidades">Unidades físicas</option><option value="clientes">Clientes</option></select></label>
+          <form id="filtro"><label>Buscar<input type="search" maxlength="80" name="buscar"></label><button>Buscar</button></form>
+        </div>
+        <div class="table-scroll"><table><thead id="cabecera"></thead><tbody id="filas"></tbody></table></div>
+        <div class="admin-pager"><button id="anterior" type="button">Anterior</button><span id="rango"></span><button id="siguiente" type="button">Siguiente</button></div>
+      </section>
+    </div>
+    <dialog id="editor" aria-labelledby="titulo-editor">
+      <form class="admin-form" id="modelo">
+        <h2 id="titulo-editor">Nuevo modelo</h2>
+        <label>Nombre<input name="nombre" maxlength="80" required></label>
+        <label id="correo-cliente" hidden>Correo del cliente<input type="email" name="correo" maxlength="254" autocomplete="off"></label>
+        <label id="clave-cliente" hidden>Contraseña inicial<input type="password" name="clave" minlength="12" maxlength="256" autocomplete="new-password"></label>
+        <label id="descripcion-modelo">Descripción<textarea name="descripcion" maxlength="255"></textarea></label>
+        <label><input name="activo" type="checkbox" checked> <span id="activo-label">Modelo activo</span></label>
+        <p role="status" id="error-editor"></p>
+        <div><button id="cancelar" type="button">Cancelar</button> <button class="primary">Guardar</button></div>
+      </form>
+    </dialog>
+  </main>
+  <footer class="site-footer">Desarrollado por Jose Efren Quintanilla Morales · 2026</footer>
+</body>
+</html>

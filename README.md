@@ -31,9 +31,9 @@ Abre `http://127.0.0.1:4173/`. La configuración y el cliente Fetch/WebSocket se
 **Comprobación para la entrega.** Desde el sitio publicado abre Control, Monitoreo y un cliente WSS independiente para el mismo vehículo. Registra avance, cambio de dirección y parada. Comprueba que una segunda sesión actualiza la tarjeta, que al superar diez registros se conservan los diez más recientes y que una demo completa o cancelada deja iguales los ID del historial individual. Interrumpe WSS y la consulta HTTPS por separado para verificar la recuperación. Completa las evidencias en teléfono real y escritorio.
 
 
-[Control](https://vehiculo-pi.vercel.app/) se puede instalar como app web. Los joysticks, **Parar**, las funciones y **Demo** se ajustan al alto disponible en vertical y horizontal. **Teclado y mando** abre los ajustes de teclas. **IA** reúne comandos por voz y conducción con la palma. Consulta la [configuración de IA](docs/CONTROL-WEB.md#control-con-ia).
+[Control](https://vehiculo-iot.vercel.app/) se puede instalar como app web. Los joysticks, **Parar**, las funciones y **Demo** se ajustan al alto disponible en vertical y horizontal. **Teclado y mando** abre los ajustes de teclas. **IA** reúne comandos por voz y conducción con la palma. Consulta la [configuración de IA](docs/CONTROL-WEB.md#control-con-ia).
 
-[Monitor WebSocket](https://vehiculo-pi.vercel.app/monitor.html) y [Swagger](https://cape-landside-tidy.ngrok-free.dev/docs) tienen sus propias páginas. La API procesa las órdenes, demos y planes por voz aunque el ESP8266 esté desconectado. Monitor muestra qué órdenes se enviaron a la placa y cuáles se procesaron en la API.
+[Monitor WebSocket](https://vehiculo-iot.vercel.app/monitor.html) y [Swagger](https://cape-landside-tidy.ngrok-free.dev/docs) tienen sus propias páginas. La API procesa las órdenes, demos y planes por voz aunque el ESP8266 esté desconectado. Monitor muestra qué órdenes se enviaron a la placa y cuáles se procesaron en la API.
 
 El frontend se construye desde [control-iot](control-iot) para Vercel. FastAPI se ejecuta en EC2 Debian con systemd y consulta MySQL en RDS. Consulta la [guía de uso, despliegue y WebSocket](docs/CONTROL-WEB.md).
 

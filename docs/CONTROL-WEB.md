@@ -4,8 +4,8 @@
 
 | Página | Dirección | Función |
 | --- | --- | --- |
-| Control | [vehiculo-pi.vercel.app](https://vehiculo-pi.vercel.app/) | Conducción, teclado, mando, demos y app instalable. |
-| Monitor | [vehiculo-pi.vercel.app/monitor.html](https://vehiculo-pi.vercel.app/monitor.html) | Movimientos y tramas WebSocket en vivo. |
+| Control | [vehiculo-iot.vercel.app](https://vehiculo-iot.vercel.app/) | Conducción, teclado, mando, demos y app instalable. |
+| Monitor | [vehiculo-iot.vercel.app/monitor.html](https://vehiculo-iot.vercel.app/monitor.html) | Movimientos y tramas WebSocket en vivo. |
 | Swagger | [API /docs](https://cape-landside-tidy.ngrok-free.dev/docs) | Operaciones REST y administración del catálogo. |
 
 La app instalada abre Control. La pantalla adapta los joysticks y coloca **Parar**, las funciones y **Demo** en el área visible en vertical y horizontal. **Teclado y mando** abre un cuadro para seleccionar una acción, cambiar su tecla o restaurar las asignaciones. **Kiwi** activa los comandos por voz y **Cámara** activa la conducción con la mano.
@@ -119,13 +119,13 @@ Mientras el túnel esté abierto, entra a `http://localhost:8000/docs`.
 
 ### Despliegue con ngrok
 
-En el proyecto `vehiculo` de Vercel, configura `IOT_API_URL` para **Production** con el origen HTTPS de la API.
+En el proyecto de Vercel que publica `vehiculo-iot.vercel.app`, configura `IOT_API_URL` para **Production** con el origen HTTPS de la API.
 
 ```text
 https://cape-landside-tidy.ngrok-free.dev
 ```
 
-Después de guardar la variable, vuelve a desplegar `main`. En EC2, `ngrok.service` publica FastAPI en `127.0.0.1:8000`. Comprueba el servicio con `sudo systemctl status ngrok` y el túnel con `curl -fsS https://cape-landside-tidy.ngrok-free.dev/openapi.json`. El authtoken de ngrok se configura en Debian. En `BROWSER_ORIGINS` de `/etc/vehiculo-iot/api.env`, incluye `https://vehiculo-pi.vercel.app` para autorizar Control y Monitor.
+Después de guardar la variable, vuelve a desplegar `main`. En EC2, `ngrok.service` publica FastAPI en `127.0.0.1:8000`. Comprueba el servicio con `sudo systemctl status ngrok` y el túnel con `curl -fsS https://cape-landside-tidy.ngrok-free.dev/openapi.json`. El authtoken de ngrok se configura en Debian. En `BROWSER_ORIGINS` de `/etc/vehiculo-iot/api.env`, conserva los dos orígenes autorizados, `https://vehiculo-iot.vercel.app` y `https://zreyter.github.io`, al actualizar la lista.
 
 ## Cómo se organiza el código
 

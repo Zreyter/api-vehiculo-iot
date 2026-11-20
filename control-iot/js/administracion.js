@@ -19,6 +19,7 @@ function session(active, message = '') {
     $('metricas').replaceChildren();
     $('filas').replaceChildren();
     if (editor.open) editor.close();
+    if ($('asignacion').open) $('asignacion').close();
   }
 }
 
@@ -52,7 +53,7 @@ function openEditor(item) {
 
 const columns = {
   modelos: ['ID','Modelo','Estado','Acción'],
-  unidades: ['ID','Unidad','Modelo','Estado'],
+  unidades: ['ID','Unidad','Modelo','Estado','Propietario','Acción'],
   clientes: ['ID','Cliente','Correo','Estado','Acción'],
 };
 
@@ -68,11 +69,17 @@ function table(rows, view) {
     const row = document.createElement('tr');
     const status = item.activo ? 'Activo' : 'Inactivo';
     let values;
-    if (view === 'unidades') values = [item.id_vehiculo, item.nombre, item.modelo, item.estado.replaceAll('_',' ')];
+    if (view === 'unidades') values = [item.id_vehiculo, item.nombre, item.modelo, item.estado.replaceAll('_',' '),item.propietario || 'Sin asignar'];
     if (view === 'clientes') values = [item.id_usuario, item.nombre, item.correo, status];
     if (view === 'modelos') values = [item.id_modelo, item.nombre, status];
     for (const value of values) row.append(node('td',value));
-    if (view !== 'unidades') {
+    if (view === 'unidades') {
+      const boton = node('button', item.id_usuario ? 'Cambiar propietario' : 'Asignar');
+      boton.type = 'button';
+      boton.disabled = item.estado === 'inactivo' && !item.id_usuario;
+      boton.onclick = () => abrirAsignacion(item);
+      row.insertCell().append(boton);
+    } else {
       const edit = node('button','Editar');
       edit.type = 'button';
       edit.setAttribute('aria-label','Editar ' + item.nombre);
@@ -174,3 +181,46 @@ form.onsubmit = async event => {
 editor.addEventListener('close', () => { form.elements.clave.value = ''; });
 editor.addEventListener('cancel', event => { if (form.querySelector('.primary').disabled) event.preventDefault(); });
 session(false,config.comercial ? '' : 'Administración aún no está habilitada en este entorno.');
+const asignacion = $('asignacion'), propiedad = $('propiedad');
+let unidadEditada;
+async function abrirAsignacion(item) {
+  unidadEditada = item;
+  const select = propiedad.elements.comprador;
+  select.replaceChildren(new Option('Selecciona un comprador', ''));
+  if (item.id_usuario) select.add(new Option('Retirar asignación', '0'));
+  const guardar = propiedad.querySelector('.primary');
+  guardar.disabled = true;
+  $('titulo-asignacion').textContent = 'Propietario de ' + item.nombre + ' · ' + item.id_vehiculo;
+  $('error-propiedad').textContent = 'Cargando compradores…';
+  asignacion.showModal();
+  try {
+    for (let offset = 0;; offset += 100) {
+      const clientes = await api.get('/comercial/clientes?limite=100&inicio=' + offset);
+      if (!asignacion.open || unidadEditada !== item) return;
+      for (const cliente of clientes.filter(c => c.activo)) {
+        select.add(new Option(cliente.nombre + ' · ' + cliente.correo, cliente.id_usuario));
+      }
+      if (clientes.length < 100) break;
+    }
+    select.value = item.id_usuario || '';
+    guardar.disabled = false;
+    $('error-propiedad').textContent = '';
+  } catch (err) { $('error-propiedad').textContent = err.message; }
+}
+$('cerrar-asignacion').onclick = () => asignacion.close();
+propiedad.onsubmit = async event => {
+  event.preventDefault();
+  const item = unidadEditada;
+  const guardar = propiedad.querySelector('.primary');
+  guardar.disabled = true;
+  try {
+    await api.request('/comercial/unidades/' + item.id_vehiculo + '/propietario', {
+      method: 'PUT', body: JSON.stringify({ id_usuario: Number(propiedad.elements.comprador.value) || null, anterior: item.id_usuario })
+    });
+    asignacion.close();
+    await refresh();
+  } catch (err) {
+    if (err.status === 409) await refresh();
+    $('error-propiedad').textContent = err.message;
+  } finally { guardar.disabled = false; }
+};

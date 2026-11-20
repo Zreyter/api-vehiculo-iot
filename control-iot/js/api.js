@@ -1,7 +1,15 @@
 import config from '../config.js';
 import { Connectivity } from './connectivity.js';
 
-export const vehicleId = config.vehicleId;
+const unidad = new URLSearchParams(location.search).get('unidad');
+const personal = config.comercial && unidad !== null;
+export const vehicleId = personal ? Number(unidad) : config.vehicleId;
+export const buyerKey = 'excavadora.comprador:' + new URL(config.api).origin;
+if (personal) {
+  for (const link of document.querySelectorAll('.main-nav a[href="./"], .main-nav a[href="./monitor.html"]')) {
+    link.search = new URLSearchParams({ unidad });
+  }
+}
 for (const link of document.querySelectorAll('[data-comercial]')) link.hidden = !config.comercial;
 const tokenKey = 'excavadora.access:' + new URL(config.api).origin;
 
@@ -136,8 +144,87 @@ export class VehicleApi extends EventTarget {
 
 /** Comparte la sesión entre páginas y solo recuerda el código con permiso explícito. */
 export class AccessForm {
+  accesoComprador(api, role, content, onConnect) {
+    const token = sessionStorage.getItem(buyerKey);
+    const volver = () => location.replace('./mis-vehiculos.html');
+    if (!token || !Number.isSafeInteger(vehicleId) || vehicleId <= 0) {
+      volver();
+      return;
+    }
+    const status = document.querySelector('#status');
+    const notice = document.querySelector('#notice');
+    const connectivity = new Connectivity(api, vehicleId);
+    const swagger = document.querySelector('[data-swagger]');
+    if (swagger) swagger.href = new URL('/docs', config.api);
+    api.token = token;
+    let activo = true, intento = 0, timer;
+    const reintentar = () => {
+      if (!activo) return;
+      clearTimeout(timer);
+      content.hidden = true;
+      status.textContent = 'Reconectando…';
+      status.dataset.state = 'pending';
+      timer = setTimeout(conectar, Math.min(15000, 750 * 2 ** Math.min(intento++, 5)));
+    };
+    const conectar = async () => {
+      try {
+        await api.get('/vehiculos/' + vehicleId + '/dispositivo');
+        if (!activo) return;
+        await api.open(token, role);
+        await onConnect();
+        if (!activo || !api.socket) return;
+        intento = 0;
+        content.hidden = false;
+        notice.textContent = '';
+        status.textContent = 'Conectado · Unidad ' + vehicleId;
+        status.dataset.state = 'ready';
+        void connectivity.check();
+      } catch (err) {
+        if (!activo) return;
+        api.close();
+        if (err.status === 401 || err.status === 403) {
+          if (err.status === 401) sessionStorage.removeItem(buyerKey);
+          activo = false;
+          volver();
+          return;
+        }
+        notice.textContent = err.message;
+        reintentar();
+      }
+    };
+    api.addEventListener('disconnect', reintentar);
+    document.querySelector('#logout').onclick = async () => {
+      activo = false;
+      clearTimeout(timer);
+      content.hidden = true;
+      api.close();
+      try {
+        await api.request('/comercial/sesion', { method: 'DELETE' });
+        sessionStorage.removeItem(buyerKey);
+        volver();
+      } catch (err) {
+        notice.textContent = 'No se pudo confirmar la salida. ' + err.message;
+        activo = true;
+        reintentar();
+      }
+    };
+    window.addEventListener('pagehide', () => { activo = false; clearTimeout(timer); api.close(); });
+    window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
+    void conectar();
+  }
+
   constructor(api, role, content, onConnect = async () => {}) {
     const form = document.querySelector('#login');
+    if (config.comercial && !personal) {
+      form.hidden = true;
+      location.replace('./mis-vehiculos.html');
+      return;
+    }
+    if (personal) {
+      form.hidden = true;
+      this.accesoComprador(api, role, content, onConnect);
+      return;
+    }
     const formPosition = document.createComment('Acceso');
     const input = document.querySelector('#token');
     const remember = document.querySelector('#remember-code');

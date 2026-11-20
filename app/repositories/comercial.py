@@ -40,18 +40,89 @@ class ComercialRepository:
             cur.execute("DELETE FROM comercial_sesiones WHERE token_hash=%s", (huella(token),))
 
     @contextmanager
-    def administrador(self, token, *, escritura=False):
+    def cuenta(self, token, *, rol, escritura=False):
         with self.database.transaction(write=escritura) as conn, conn.cursor(dictionary=True) as cur:
-            cur.execute("""SELECT u.id_usuario,u.rol FROM comercial_usuarios u
+            cur.execute("""SELECT u.id_usuario,u.rol,
+                                  TIMESTAMPDIFF(MICROSECOND, UTC_TIMESTAMP(6), s.vence) / 1000000 AS segundos
+                           FROM comercial_usuarios u
                            JOIN comercial_sesiones s ON s.id_usuario=u.id_usuario
                            WHERE s.token_hash=%s AND s.vence > UTC_TIMESTAMP() AND u.activo=1""",
                         (huella(token),))
             actor = cur.fetchone()
             if not actor:
                 raise ServiceError(401, "La sesión comercial terminó. Vuelve a ingresar.")
-            if actor["rol"] != "admin":
-                raise ServiceError(403, "Esta operación requiere una cuenta de administrador.")
+            if actor["rol"] != rol:
+                raise ServiceError(403, "Esta cuenta no tiene permiso para la operación.")
+            yield cur, actor
+
+    @contextmanager
+    def administrador(self, token, *, escritura=False):
+        with self.cuenta(token, rol="admin", escritura=escritura) as (cur, actor):
             yield cur, actor["id_usuario"]
+
+    def verificar_admin(self, token):
+        with self.administrador(token):
+            pass
+
+    def permiso_unidad(self, token, unidad):
+        with self.cuenta(token, rol="usuario") as (cur, actor):
+            if unidad is not None:
+                cur.execute("""SELECT 1 FROM comercial_propiedad p JOIN vehiculos v USING(id_vehiculo)
+                               JOIN comercial_unidades u USING(id_vehiculo)
+                               WHERE p.id_usuario=%s AND p.id_vehiculo=%s AND v.activo=1
+                               AND u.estado='asignado'""", (actor["id_usuario"], unidad))
+                if not cur.fetchone():
+                    raise ServiceError(403, "Esta unidad no está asignada a tu cuenta.")
+            return actor["id_usuario"], float(actor["segundos"])
+
+    def exigir_sin_propietario(self, unidad):
+        with self.database.transaction() as conn, conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM comercial_propiedad WHERE id_vehiculo=%s", (unidad,))
+            if cur.fetchone():
+                raise ServiceError(409, "Retira la asignación antes de desactivar la unidad.")
+
+    def mis_vehiculos(self, token):
+        with self.cuenta(token, rol="usuario") as (cur, actor):
+            cur.execute("""SELECT v.id_vehiculo,v.nombre,m.nombre modelo,u.estado
+                           FROM comercial_propiedad p JOIN vehiculos v USING(id_vehiculo)
+                           JOIN comercial_unidades u USING(id_vehiculo) JOIN comercial_modelos m USING(id_modelo)
+                           WHERE p.id_usuario=%s AND v.activo=1 AND u.estado='asignado'
+                           ORDER BY v.nombre,v.id_vehiculo""", (actor["id_usuario"],))
+            return cur.fetchall()
+
+    def asignar(self, token, unidad, nuevo, anterior, *, validar=False):
+        with self.administrador(token, escritura=True) as (cur, actor):
+            cur.execute("""SELECT v.activo,u.estado,p.id_usuario FROM comercial_unidades u
+                           JOIN vehiculos v USING(id_vehiculo) LEFT JOIN comercial_propiedad p USING(id_vehiculo)
+                           WHERE u.id_vehiculo=%s FOR UPDATE""", (unidad,))
+            fila = cur.fetchone()
+            if not fila:
+                raise ServiceError(404, "Unidad comercial inexistente.")
+            if fila["id_usuario"] != anterior:
+                raise ServiceError(409, "La asignación cambió. Actualiza el inventario.")
+            if nuevo == anterior:
+                return False
+            if nuevo is not None:
+                if not fila["activo"] or fila["estado"] == "inactivo":
+                    raise ServiceError(409, "La unidad está inactiva.")
+                cur.execute("""SELECT id_usuario FROM comercial_usuarios WHERE id_usuario=%s
+                               AND rol='usuario' AND activo=1 FOR UPDATE""", (nuevo,))
+                if not cur.fetchone():
+                    raise ServiceError(422, "Selecciona un comprador activo.")
+                if validar:
+                    return True
+                cur.execute("""INSERT INTO comercial_propiedad(id_vehiculo,id_usuario) VALUES(%s,%s)
+                               ON DUPLICATE KEY UPDATE id_usuario=%s""", (unidad,nuevo,nuevo))
+                estado = "asignado"
+            else:
+                if validar:
+                    return True
+                cur.execute("DELETE FROM comercial_propiedad WHERE id_vehiculo=%s", (unidad,))
+                estado = "disponible" if fila["activo"] and fila["estado"] != "inactivo" else "inactivo"
+            cur.execute("UPDATE comercial_unidades SET estado=%s WHERE id_vehiculo=%s", (estado,unidad))
+            cur.execute("""INSERT INTO comercial_auditoria(actor,accion,recurso,id_recurso,resultado)
+                           VALUES(%s,'cambiar_propietario','unidad',%s,'correcto')""", (actor,unidad))
+            cur.execute("INSERT INTO comercial_cambios_propietario VALUES(%s,%s,%s)", (cur.lastrowid,anterior,nuevo))
 
     def resumen(self, token):
         with self.administrador(token) as (cur, _):
@@ -68,9 +139,12 @@ class ComercialRepository:
     def unidades(self, token, buscar, inicio, limite):
         with self.administrador(token) as (cur, _):
             cur.execute("""SELECT v.id_vehiculo,v.nombre,COALESCE(m.nombre,v.modelo,'') modelo,
-                                  IF(v.activo=0,'inactivo',COALESCE(u.estado,'sin_clasificar')) estado
+                                  IF(v.activo=0,'inactivo',COALESCE(u.estado,'sin_clasificar')) estado,
+                                  p.id_usuario, c.nombre propietario
                            FROM vehiculos v LEFT JOIN comercial_unidades u USING(id_vehiculo)
                            LEFT JOIN comercial_modelos m USING(id_modelo)
+                           LEFT JOIN comercial_propiedad p USING(id_vehiculo)
+                           LEFT JOIN comercial_usuarios c ON c.id_usuario=p.id_usuario
                            WHERE LOCATE(%s,v.nombre)>0 OR LOCATE(%s,COALESCE(m.nombre,v.modelo,''))>0
                            ORDER BY v.id_vehiculo LIMIT %s OFFSET %s""", (buscar,buscar,limite,inicio))
             return cur.fetchall()

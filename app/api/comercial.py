@@ -1,9 +1,12 @@
+import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.errors import ServiceError
 from app.models.comercial import (
+    Asignacion, UnidadAdministrada,
     Acceso, ClienteEdicion, ClienteGuardado, ClienteNuevo, Inventario, Modelo, ModeloGuardado, Sesion, Unidad,
 )
 
@@ -30,8 +33,11 @@ def acceso(body: Acceso, request: Request, response: Response):
 
 
 @router.delete("/sesion", status_code=204)
-def salir(request: Request, token: Token):
-    request.app.state.comercial.salir(token)
+async def salir(request: Request, token: Token):
+    app = request.app.state
+    async with app.permisos.cambio():
+        await app.permisos.cerrar(token=token)
+        await asyncio.to_thread(app.comercial.salir, token)
     return Response(status_code=204)
 
 
@@ -40,7 +46,7 @@ def resumen(request: Request, token: Token):
     return request.app.state.comercial.resumen(token)
 
 
-@router.get("/unidades", response_model=list[Unidad])
+@router.get("/unidades", response_model=list[UnidadAdministrada])
 def unidades(request: Request, token: Token, buscar: Busqueda = "", inicio: Inicio = 0, limite: Limite = 50):
     return request.app.state.comercial.unidades(token, buscar, inicio, limite)
 
@@ -71,5 +77,31 @@ def crear_cliente(body: ClienteNuevo, request: Request, token: Token):
 
 
 @router.put("/clientes/{id_usuario}", response_model=ClienteGuardado, responses={404: {}, 409: {}})
-def editar_cliente(id_usuario: Annotated[int, Path(gt=0)], body: ClienteEdicion, request: Request, token: Token):
-    return request.app.state.comercial.guardar_cliente(token, body, id_usuario)
+async def editar_cliente(id_usuario: Annotated[int, Path(gt=0)], body: ClienteEdicion, request: Request, token: Token):
+    app = request.app.state
+    if body.activo:
+        return await asyncio.to_thread(app.comercial.guardar_cliente, token, body, id_usuario)
+    await asyncio.to_thread(app.comercial.verificar_admin, token)
+    async with app.permisos.cambio():
+        await app.permisos.cerrar(usuario=id_usuario)
+        return await asyncio.to_thread(app.comercial.guardar_cliente, token, body, id_usuario)
+
+
+@router.get("/mis-vehiculos", response_model=list[Unidad])
+def mis_vehiculos(request: Request, token: Token):
+    return request.app.state.comercial.mis_vehiculos(token)
+
+
+@router.put("/unidades/{id_vehiculo}/propietario", status_code=204)
+async def asignar(id_vehiculo: Annotated[int, Path(gt=0)], body: Asignacion, request: Request, token: Token):
+    app = request.app.state
+    args = (token, id_vehiculo, body.id_usuario, body.anterior)
+    if await asyncio.to_thread(app.comercial.asignar, *args, validar=True):
+        async with app.permisos.cambio(id_vehiculo):
+            if await asyncio.to_thread(app.comercial.asignar, *args, validar=True):
+                await app.permisos.cerrar(unidad=id_vehiculo)
+                control = app.device_service.coordinator
+                if control.remote_busy(id_vehiculo) or id_vehiculo in control.active:
+                    raise ServiceError(409, "Detén la operación activa antes de transferir la unidad.")
+                await asyncio.to_thread(app.comercial.asignar, *args)
+    return Response(status_code=204)

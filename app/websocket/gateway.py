@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from app.core.errors import DatabaseUnavailable, ServiceError
-from app.core.security import check_token
+from app.core.security import check_token, permiso_operativo
 from app.models.device import TimedControlInput, DeviceCommand
 from app.models.schemas import DemoRequest
 
@@ -291,7 +291,15 @@ class SocketGateway:
         if protocol in (DEVICE, DIRECT_DEVICE) or self.legacy == DEVICE:
             settings = self.app.settings
             expected = settings.device_token.get_secret_value()
-            if self.legacy == DEVICE and not expected:
+            if settings.comercial_habilitado:
+                claves = {i: s.get_secret_value() for i, s in settings.device_tokens_por_unidad.items()}
+                if expected:
+                    claves.setdefault(settings.device_vehicle_id, expected)
+                expected = claves.get(self.vehicle_id, "")
+                if (expected == settings.control_token.get_secret_value()
+                        or sum(clave == expected for clave in claves.values()) != 1):
+                    raise HTTPException(401)
+            if self.legacy == DEVICE and not expected and not settings.comercial_habilitado:
                 expected = settings.control_token.get_secret_value()
             if not expected or not compare_digest(expected.encode(), token.encode()):
                 raise HTTPException(401)
@@ -300,7 +308,9 @@ class SocketGateway:
             raise HTTPException(401)
         if protocol:
             token = self.browser_token(protocols)
-        check_token(self.app.settings, token)
+        self.token = token
+        if not self.app.settings.comercial_habilitado:
+            check_token(self.app.settings, token)
         return protocol or "observador", protocol
 
     async def run_device(self, protocol):
@@ -336,15 +346,48 @@ class SocketGateway:
                         raise ValueError()
                     control.schedule(raw)
         finally:
-            await self.app.manager.disconnect(self.vehicle_id, client)
-            if control:
-                await control.close()
+            async def cerrar():
+                try:
+                    await self.app.manager.disconnect(self.vehicle_id, client)
+                finally:
+                    if control:
+                        await control.close()
+
+            # Una revocación puede coincidir con el cierre iniciado por el navegador.
+            limpieza = asyncio.create_task(cerrar())
+            while not limpieza.done():
+                try:
+                    await asyncio.shield(limpieza)
+                except asyncio.CancelledError:
+                    continue
+            limpieza.result()
+
+    async def comprador(self, role, protocol):
+        loop = asyncio.get_running_loop()
+        async with self.app.permisos.operacion(self.vehicle_id):
+            inicio = loop.time()
+            usuario, segundos = await permiso_operativo(self.app, self.token, self.vehicle_id)
+            tarea = asyncio.create_task(self.run_browser(role, protocol))
+            self.app.permisos.registrar(tarea, self.vehicle_id, usuario, self.token)
+            vencimiento = loop.call_at(inicio + segundos, tarea.cancel) if segundos is not None else None
+        try:
+            await tarea
+        except asyncio.CancelledError:
+            try:
+                await self.socket.close(code=1008)
+            except (RuntimeError, OSError):
+                pass
+        finally:
+            if vencimiento:
+                vencimiento.cancel()
 
     async def run(self):
         try:
             role, protocol = self.authorize()
             if role == DEVICE:
                 await self.run_device(protocol)
+            elif self.app.settings.comercial_habilitado:
+                await self.comprador(role, protocol)
             else:
                 await self.run_browser(role, protocol)
         except (HTTPException, ServiceError, ValueError):

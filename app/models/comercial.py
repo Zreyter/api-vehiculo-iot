@@ -34,6 +34,17 @@ class Unidad(BaseModel):
     estado: str
 
 
+class UnidadAdministrada(Unidad):
+    id_usuario: int | None
+    propietario: str | None
+
+
+class Asignacion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id_usuario: Annotated[int, Field(gt=0, strict=True)] | None
+    anterior: Annotated[int, Field(gt=0, strict=True)] | None
+
+
 class Inventario(BaseModel):
     total_modelos: int
     total_unidades: int

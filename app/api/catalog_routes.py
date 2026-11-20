@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Request, Response
@@ -41,6 +42,8 @@ async def create_vehicle(body: VehicleCreate, request: Request):
 
 @router.put("/vehiculos/{id_vehiculo}", response_model=VehicleRecord, tags=["Administración: vehículos"], summary="Actualizar vehículo", description=UPDATE_NOTE)
 async def update_vehicle(id_vehiculo: ObjectId, body: VehicleUpdate, request: Request):
+    if request.app.state.settings.comercial_habilitado and not body.activo:
+        await asyncio.to_thread(request.app.state.comercial.exigir_sin_propietario, id_vehiculo)
     return await request.app.state.catalog_service.write("update_vehicle", id_vehiculo, body)
 
 

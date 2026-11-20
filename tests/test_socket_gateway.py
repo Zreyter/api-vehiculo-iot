@@ -72,6 +72,20 @@ class SocketGatewayTests(unittest.TestCase):
                 self.assertEqual(trace["direccion"], "esp8266 → api")
                 self.assertEqual(trace["trama"], {"tipo": "listo", "codigo": 0, "modo": "wifi"})
 
+    def test_credencial_de_placa_comercial_se_limita_a_su_unidad(self):
+        settings = Settings(_env_file=None, comercial_habilitado=True, device_token="primera",
+                            device_tokens_por_unidad={2:"segunda"}, control_token="compartida")
+        with TestClient(create_app(settings,self.repo)) as client:
+            for unidad, clave in ((1,"primera"),(2,"segunda")):
+                with client.websocket_connect(f"/ws/vehiculos/{unidad}", subprotocols=["iot-device"],
+                        headers={"authorization":"Bearer "+clave}) as device:
+                    self.assertEqual(device.receive_json()["tipo"],"saludo")
+            for ruta in ("/ws/vehiculos/2","/dispositivo/ws/vehiculos/2"):
+                for clave in ("primera","compartida"):
+                    with self.assertRaises(WebSocketDisconnect), client.websocket_connect(
+                            ruta,subprotocols=["iot-device"],headers={"authorization":"Bearer "+clave}):
+                        pass
+
     def test_only_authorized_browser_or_device_can_enter(self):
         with self.client:
             with self.assertRaises(WebSocketDisconnect):

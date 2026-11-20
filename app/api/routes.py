@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Query, Request
 
 from app.core.errors import ServiceError
-from app.core.security import require_control_token
+from app.core.security import acceso_historial, require_control_token
 from app.models.schemas import DemoRequest, DemoHeartbeatRequest, Event, HistoryItem, MovementRequest, state_event
 
 router = APIRouter()
@@ -30,8 +30,8 @@ async def movement(id_vehiculo: VehicleId, body: MovementRequest, request: Reque
 
 @router.get(
     "/vehiculos/{id_vehiculo}/historial", response_model=list[HistoryItem],
-    tags=["Historial"], responses=errors, summary="Consultar hasta diez movimientos",
-    description="Orden descendente de fecha_hora e id_historial. Lectura local sin token; nunca devuelve más de diez elementos.",
+    dependencies=[Depends(acceso_historial)], tags=["Historial"], responses=errors, summary="Consultar hasta diez movimientos",
+    description="Orden descendente de fecha_hora e id_historial. Con el módulo comercial requiere permiso sobre la unidad; nunca devuelve más de diez elementos.",
 )
 async def history(id_vehiculo: VehicleId, request: Request, limite: int = Query(default=10, ge=1, le=10)):
     return await request.app.state.vehicle_service.history(id_vehiculo, limite)

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     comercial_habilitado: bool = False
     control_token: SecretStr = SecretStr("")
     device_token: SecretStr = SecretStr("")
+    device_vehicle_id: int = Field(default=1, gt=0)
+    device_tokens_por_unidad: dict[int, SecretStr] = Field(default_factory=dict)
     browser_origins: list[str] = Field(default_factory=list)
     openai_api_key: SecretStr = SecretStr("")
     openai_voice_model: str = "gpt-4.1-mini"

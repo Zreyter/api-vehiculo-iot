@@ -15,6 +15,7 @@ from app.api.catalog_routes import router as catalog_router
 from app.api.panel_routes import router as panel_router
 from app.api.device_routes import router as device_router
 from app.api.assist_routes import router as assist_router
+from app.core.propiedad import PermisosOperativos
 from app.core.config import Settings
 from app.core.database import Database
 from app.core.errors import ServiceError
@@ -89,6 +90,7 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
     if settings.comercial_habilitado:
+        application.state.permisos = PermisosOperativos()
         application.state.comercial = ComercialRepository(database)
         application.include_router(comercial_router)
 

@@ -14,7 +14,7 @@
 <body class="monitor-page admin-page">
   <header class="header">
     <a class="brand" href="./"><img src="./assets/favicon/excavadora-192.png" alt="">Excavadora IoT</a>
-    <nav class="main-nav" aria-label="Páginas"><a href="./">Control</a><a href="./monitor.html">Monitoreo</a><a href="./administracion.html" aria-current="page">Administración</a></nav>
+    <nav class="main-nav" aria-label="Páginas"><a href="./">Control</a><a href="./monitor.html">Monitoreo</a><a href="./mis-vehiculos.html" data-comercial hidden>Mis vehículos</a><a href="./administracion.html" aria-current="page">Administración</a></nav>
   </header>
   <main class="shell">
     <div class="section-title"><h1>Administración</h1><button type="button" id="salir" hidden>Salir</button></div>
@@ -37,6 +37,14 @@
         <div class="admin-pager"><button id="anterior" type="button">Anterior</button><span id="rango"></span><button id="siguiente" type="button">Siguiente</button></div>
       </section>
     </div>
+    <dialog id="asignacion" aria-labelledby="titulo-asignacion">
+      <form class="admin-form" id="propiedad">
+        <h2 id="titulo-asignacion">Asignar unidad</h2>
+        <label>Comprador<select name="comprador" required></select></label>
+        <p id="error-propiedad" role="status"></p>
+        <div><button id="cerrar-asignacion" type="button">Cancelar</button> <button class="primary">Guardar</button></div>
+      </form>
+    </dialog>
     <dialog id="editor" aria-labelledby="titulo-editor">
       <form class="admin-form" id="modelo">
         <h2 id="titulo-editor">Nuevo modelo</h2>

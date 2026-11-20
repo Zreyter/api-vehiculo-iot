@@ -20,7 +20,9 @@ El acceso comercial se habilita por entorno. El administrador utiliza correo y c
 | Asignaciones | Implementado | Un comprador puede tener varias unidades. Cada unidad admite un propietario vigente. |
 | Reservas y demos privadas | Pendiente | Requieren capacidades y reserva exclusiva por unidad. |
 
-La API original publica su contrato en [Swagger](https://cape-landside-tidy.ngrok-free.dev/docs). En el inventario inicial de RDS se identificaron seis tablas, 21 procedimientos, cero vistas, cero disparadores y cero eventos programados en el esquema. `historial_comandos.id_historial` es BIGINT. Los IDs de vehículo, comando, demo y paso son INT con signo. Hay claves únicas de comando por vehículo y código, comando por vehículo y nombre, y orden de paso por demo.
+El inventario de 29 operaciones anteriores y 22 nuevas identifica los permisos, los códigos de respuesta y la vista asociada a cada ruta. [Contrato HTTP y WebSocket completo](API-4-3.md)
+
+La API publicada expone su contrato en [Swagger](https://cape-landside-tidy.ngrok-free.dev/docs). En el inventario inicial de RDS se identificaron seis tablas, 21 procedimientos, cero vistas, cero disparadores y cero eventos programados en el esquema. `historial_comandos.id_historial` es BIGINT. Los IDs de vehículo, comando, demo y paso son INT con signo. Hay claves únicas de comando por vehículo y código, comando por vehículo y nombre, y orden de paso por demo.
 
 ## Esquema implementado
 
@@ -111,6 +113,6 @@ erDiagram
     comandos ||--o{ demo_movimientos : usa
 ```
 
-La aplicación de la migración 005 en RDS conservó 2.616 registros de historial, 21 procedimientos y las tres asignaciones vigentes. La versión temporal respondió desde EC2 y leyó RDS. La activación pública requiere que el servicio del vehículo y el túnel HTTPS estén disponibles.
+La aplicación de la migración 005 en RDS conservó 2.616 registros de historial, 21 procedimientos y las tres asignaciones vigentes. La versión temporal respondió desde EC2 y leyó RDS. Después del despliegue se comprobó el acceso a Mis vehículos, el mando, el WebSocket y el historial desde Vercel y GitHub Pages.
 
 La persona propietaria confirmó desde su celular que el carro se mueve y se detiene. La evaluación colaborativa de las tres plataformas y la prueba física supervisada de invitados requieren a los participantes y una unidad destinada a exhibición. [Matriz P01–P17](MATRIZ-4-3.md)

@@ -1,8 +1,8 @@
 # Excavadora IoT 2.0.5
 
-## Práctica 4.3 · Administración en desarrollo
+## Práctica 4.3 · Administración, Control y Monitoreo
 
-La práctica 4.3 integra Administración, Mis vehículos, demos privadas y catálogo de exhibición con el mando y el monitor. La API de AWS delimita el acceso por rol y por unidad. Consulta el [diagnóstico, migraciones, contratos y recuperación](docs/PRACTICA-4-3.md) y la [matriz P01–P17](docs/MATRIZ-4-3.md).
+La práctica 4.3 integra Administración, Mis vehículos, demos privadas y catálogo de exhibición con el mando y el monitor. La API de AWS delimita el acceso por rol y por unidad. Consulta el [diagnóstico, migraciones, contratos y recuperación](docs/PRACTICA-4-3.md), el [contrato HTTP y WebSocket](docs/API-4-3.md) y la [matriz P01–P17](docs/MATRIZ-4-3.md).
 
 ## Prácticas 4.1 y 4.2 · Control y Monitoreo
 
@@ -215,15 +215,9 @@ Usa **un solo proceso** de la API: la coordinación de DEMO y las salas WebSocke
 
 ## Autenticación
 
-El token de control y la contraseña MySQL tienen funciones diferentes: el token autentica al cliente de la API; la contraseña permite a la aplicación conectarse a la base.
+En la publicación de 4.3, inicia sesión en Administración o en Mis vehículos. Para acceder desde Swagger o Postman, llama a `POST /comercial/acceso` y utiliza el token devuelto como Bearer. El administrador gestiona el catálogo. Cada comprador puede controlar y consultar el historial de las unidades que tiene asignadas. Salud y catálogo de exhibición admiten consultas públicas.
 
-Requieren token los controles de movimiento/DEMO, el WebSocket y **todas las rutas `/admin`, incluidas las consultas**. El GET de historial local no exige token.
-
-- **Swagger:** pulsa **Authorize** e introduce solamente el valor de `CONTROL_TOKEN`.
-- **Postman HTTP:** en **Authorization → Bearer Token**, introduce solamente el token.
-- **Postman WebSocket:** en **Headers**, agrega `Authorization` con el valor completo `Bearer TU_TOKEN`, dejando un espacio después de `Bearer`.
-
-Si no está configurada la contraseña, las operaciones que necesitan MySQL responden `503`; Swagger puede seguir disponible. Si el token de la API está vacío, los controles también responden `503`.
+En una instalación local con `COMERCIAL_HABILITADO=false` se usa `CONTROL_TOKEN` y el historial conserva el acceso sin token de 4.1/4.2. La contraseña MySQL se establece en el servidor y permite que la API se conecte a la base. [Permisos HTTP y WebSocket por ruta](docs/API-4-3.md)
 
 ## Operaciones de movimiento, historial y ejecución DEMO
 
@@ -308,7 +302,7 @@ La verificación de v1.5 aprobó **80 pruebas Python y 15 pruebas JavaScript**, 
 
 ### Pruebas manuales con Postman
 
-Las dos colecciones están en `postman/`. Importa la que corresponda y configura su variable `control_token` como valor local. Para pruebas locales configura `base_url` como `http://localhost:8000`; para repetirlas en AWS utiliza `http://<IP_PUBLICA_EC2>:8000` y el token de esa instancia. Los WebSocket se crean manualmente, usando el mismo servidor y puerto que la API.
+Las colecciones de `postman/` corresponden a la actividad 2.5. Usa `http://localhost:8000` y configura `control_token` como valor local de ensayo. Los permisos y las rutas comerciales de la publicación 4.3 se describen en el [contrato HTTP y WebSocket](docs/API-4-3.md).
 
 **Control y transmisión — `actividad_2_5.postman_collection.json`:**
 

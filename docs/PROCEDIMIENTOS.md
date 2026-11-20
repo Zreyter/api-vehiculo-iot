@@ -17,7 +17,7 @@ En las rutas: `v=id_vehiculo`, `c=id_comando`, `d=id_demo`, `m=id_demo_movimient
 | `sp_eliminar_comando` | `DELETE /admin/vehiculos/{v}/comandos/{c}` |
 | `sp_obtener_estado` | `GET /admin/vehiculos/{v}/estado, snapshot WebSocket y conservación de conectado` |
 | `sp_actualizar_estado` | `POST /vehiculos/{v}/movimientos y tarea DEMO (controlado, no admite editar conectado)` |
-| `sp_registrar_historial` | `Solo POST /vehiculos/{v}/movimientos; nunca durante DEMO` |
+| `sp_registrar_historial` | `POST /vehiculos/{v}/movimientos y registro individual de órdenes físicas. Excluye los pasos internos de DEMO` |
 | `sp_obtener_historial` | `GET /vehiculos/{v}/historial?limite=10` |
 | `sp_obtener_demos` | `GET /admin/vehiculos/{v}/demos y validación al ejecutar DEMO` |
 | `sp_crear_demo` | `POST /admin/vehiculos/{v}/demos` |
@@ -27,6 +27,8 @@ En las rutas: `v=id_vehiculo`, `c=id_comando`, `d=id_demo`, `m=id_demo_movimient
 | `sp_agregar_movimiento_demo` | `POST /admin/vehiculos/{v}/demos/{d}/movimientos` |
 | `sp_actualizar_movimiento_demo` | `PUT /admin/vehiculos/{v}/demos/{d}/movimientos/{m}` |
 | `sp_eliminar_movimiento_demo` | `DELETE /admin/vehiculos/{v}/demos/{d}/movimientos/{m}` |
+
+El mapa refleja la integración técnica con los procedimientos. En 4.3, los permisos y la baja lógica comercial se describen en el [contrato HTTP y WebSocket](API-4-3.md).
 
 ## Firmas confirmadas
 

@@ -11,11 +11,11 @@
 | P07 | WebSocket | Correcto. Control y Monitoreo recibieron estado desde AWS |
 | P08 | Últimos diez movimientos | Correcto. El monitor mostró diez registros en ambas publicaciones |
 | P09 | Demo persistente | Correcto en la copia MySQL. Se guardaron y se consultaron los pasos en orden |
-| P10 | Ejecución y cancelación de demo | Correcto en pruebas automatizadas del ejecutor y la parada. La nueva demo física queda por comprobar |
+| P10 | Ejecución y cancelación de demo | Correcto en modo registro sobre la copia local. Monitoreo recibió inicio y fin. Los diez movimientos individuales conservaron sus identificadores y contenido. La ejecución física de la demo queda por comprobar |
 | P11 | Prueba de invitado | No ejecutado en el carro. Exhibición sin disponibilidad pública por decisión del propietario |
 | P12 | Rechazo de acceso a Administración | Correcto. La API exige una sesión de administrador |
 | P13 | Vehículo ajeno | Correcto. AWS rechazó el acceso de la cuenta de la unidad 1 a la unidad 2 |
-| P14 | Exclusividad de exhibición | Correcto en MySQL de ensayo. La segunda reserva recibió 409. Prueba con dos navegadores y placa pendiente |
+| P14 | Exclusividad de exhibición | Correcto en MySQL de ensayo. Un segundo canal WebSocket recibió rechazo y el primero terminó con DETENER y liberó su reserva. Se usó una placa simulada |
 | P15 | Reconexión | Correcto en las pruebas automatizadas de desconexión y recuperación. Falta repetir la interrupción con el equipo |
 | P16 | Diseño responsivo | Correcto en el recorrido de navegador de 390 px |
 | P17 | Auditoría | Correcto en MySQL de ensayo. Alta de unidad y demo registradas con su actor |

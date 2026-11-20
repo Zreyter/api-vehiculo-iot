@@ -111,4 +111,6 @@ erDiagram
     comandos ||--o{ demo_movimientos : usa
 ```
 
+La aplicación de la migración 005 en RDS conservó 2.616 registros de historial, 21 procedimientos y las tres asignaciones vigentes. La versión temporal respondió desde EC2 y leyó RDS. La activación pública requiere que el servicio del vehículo y el túnel HTTPS estén disponibles.
+
 La persona propietaria confirmó desde su celular que el carro se mueve y se detiene. La evaluación colaborativa de las tres plataformas y la prueba física supervisada de invitados requieren a los participantes y una unidad destinada a exhibición. [Matriz P01–P17](MATRIZ-4-3.md)

@@ -39,6 +39,11 @@ class SocketGatewayTests(unittest.TestCase):
             self.assertEqual(response.headers["access-control-allow-origin"], self.origin)
             self.assertIn("ngrok-skip-browser-warning", response.headers["access-control-allow-headers"])
 
+            headers["access-control-request-method"] = "DELETE"
+            cancel = self.client.options("/vehiculos/1/demos/activa", headers=headers)
+            self.assertEqual(cancel.status_code, 200)
+            self.assertIn("DELETE", cancel.headers["access-control-allow-methods"])
+
             headers["origin"] = "https://otro.example"
             response = self.client.options("/vehiculos/1/comandos", headers=headers)
             self.assertEqual(response.status_code, 400)

@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#162c25">
   <title>Monitor | Excavadora IoT</title>
   <link rel="icon" href="./assets/favicon/excavadora-192.png">
+  <link rel="stylesheet" href="./css/bootstrap-grid.min.css">
   <link rel="stylesheet" href="./css/styles.css">
   <script type="module" src="./js/monitor.js"></script>
 </head>
@@ -13,7 +14,7 @@
   <header class="header">
     <a class="brand" href="./"><img src="./assets/favicon/excavadora-192.png" alt="">Excavadora IoT</a>
     <nav class="main-nav" aria-label="Páginas">
-      <a href="./">Control</a><a href="./monitor.html" aria-current="page">Monitor</a>
+      <a href="./">Control</a><a href="./monitor.html" aria-current="page">Monitoreo</a>
       <a data-swagger aria-label="Documentación de la API">API</a>
     </nav>
   </header>
@@ -38,9 +39,15 @@
     </form>
     <div id="monitor" hidden>
       <section class="card monitor-card">
-        <div class="section-title"><h2>Últimos 10 movimientos</h2><button id="logout" type="button">Salir</button></div>
+        <h2>Último movimiento reportado</h2>
+        <strong id="last-command">Cargando…</strong>
+        <p id="last-detail"></p>
+      </section>
+      <section class="card monitor-card">
+        <div class="section-title"><h2>Últimos 10 movimientos individuales</h2><button id="logout" type="button">Salir</button></div>
+        <p id="history-status" role="status">Cargando historial…</p>
         <div class="table-scroll"><table>
-          <thead><tr><th>Hora</th><th>Código</th><th>Movimiento</th><th>Origen</th></tr></thead>
+          <thead><tr><th scope="col">#</th><th scope="col">Movimiento</th><th scope="col">Fecha</th><th scope="col">Hora</th></tr></thead>
           <tbody id="movements"></tbody>
         </table></div>
       </section>
@@ -55,8 +62,13 @@
     </div>
     <p id="notice" class="notice" aria-live="polite"></p>
   </main>
+  <aside class="connection-strip d-flex flex-wrap gap-2" aria-label="Conectividad">
+    <span>WebSocket WSS · <b id="ws-health">Desconectado</b></span>
+    <span title="Disponibilidad HTTPS del contrato OpenAPI">API AWS · 21 servicios · <b id="api-health">Comprobando</b></span>
+    <span>Amazon RDS · <b>Sin verificar</b></span>
+  </aside>
   <footer class="site-footer">
-    <span>Jose Efren Quintanilla Morales</span>
+    <span>Desarrollado por Jose Efren Quintanilla Morales · 2026</span>
     <a class="linkedin-link" href="https://www.linkedin.com/in/jose-efren-quintanilla-morales"
       rel="noreferrer" aria-label="Ver el perfil de Jose Efren Quintanilla Morales en LinkedIn">
       <img src="./assets/linkedin-in.png" width="28" height="24" alt="">

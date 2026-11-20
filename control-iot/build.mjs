@@ -8,7 +8,7 @@ const api = new URL(process.env.IOT_API_URL || 'http://127.0.0.1:8000');
 const local = ['localhost', '127.0.0.1'].includes(api.hostname);
 if (api.username || api.password || api.pathname !== '/' || api.search || api.hash ||
     (api.protocol !== 'https:' && !(local && api.protocol === 'http:')) ||
-    (process.env.VERCEL && local)) {
+    ((process.env.VERCEL || process.env.GITHUB_ACTIONS) && local)) {
   throw new Error('IOT_API_URL debe ser el origen HTTPS de la API (HTTP solo para pruebas locales).');
 }
 const vehicleId = Number(process.env.IOT_VEHICLE_ID || 1);

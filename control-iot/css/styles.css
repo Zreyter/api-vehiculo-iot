@@ -28,7 +28,8 @@ a { color: inherit; text-decoration: none; }
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto auto;
 }
 .site-footer {
   width: min(1040px, calc(100% - 2 * var(--gutter, 16px)));
@@ -177,7 +178,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
   height: 100vh;
   height: 100dvh;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   overflow: hidden;
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -575,4 +576,32 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .84rem; }
 }
 @media (orientation: landscape) and (max-height: 390px) {
   .control-page .gesture-preview video { max-height: min(190px, 33dvh); }
+}
+
+.connection-strip { justify-content: center; padding: 4px 10px; background: #edf1e8; font-size: .8rem; }
+.connection-strip span { white-space: nowrap; }
+.connection-strip b[data-state="ready"] { color: #215735; }
+.connection-strip b[data-state="offline"] { color: #833323; }
+.button-grid button[data-active] { background: var(--green); color: white; }
+.toolbar-tools { flex-wrap: wrap; align-items: center; }
+#operation-mode { max-width: 100%; min-height: 36px; }
+#receipt { margin: 0; font-size: .86rem; }
+#last-detail, #history-status { margin: .4rem 0; }
+#last-command { font-size: 1.35rem; }
+@media (max-width: 540px) {
+  .connection-strip { gap: 2px 8px !important; font-size: .72rem; }
+  .site-footer { flex-wrap: wrap; }
+}
+
+.monitor-page .shell, .monitor-card { min-width: 0; }
+.monitor-card td:nth-child(2) { overflow-wrap: anywhere; white-space: normal; }
+@media (max-width: 540px) {
+  .monitor-card table { min-width: 0; width: 100%; }
+  .monitor-card td, .monitor-card th { padding: 6px 4px; font-size: .82rem; }
+}
+
+.connection-strip b[data-state="ready"]::before { content: "✓ "; }
+.connection-strip b[data-state="offline"]::before { content: "× "; }
+@media (min-width: 880px) {
+  #monitor > .monitor-card:first-child { grid-column: 1 / -1; }
 }

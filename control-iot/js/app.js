@@ -1,5 +1,6 @@
 import { AccessForm, VehicleApi, vehicleId } from './api.js';
 import { Joystick, bucketDirections, vehicleDirections } from './joystick.js';
+import { PracticeControl } from './practice-control.js';
 import { AssistPanel } from './assist-panel.js';
 
 const $ = id => document.getElementById(id);
@@ -12,6 +13,13 @@ const cancelledOrder = { cancelado: true };
 class DrivePage {
   constructor() {
     this.api = new VehicleApi();
+    this.practice = new PracticeControl(this.api, $('receipt'), vehicleId);
+    $('operation-mode').onchange = () => {
+      this.practice.enabled = $('operation-mode').value === 'rest';
+      this.practice.clear();
+      this.show('');
+      this.render();
+    };
     this.intent = 0;
     this.revision = 0;
     this.cameraOrder = null;
@@ -43,12 +51,19 @@ class DrivePage {
       };
     });
     this.api.addEventListener('vehicle', ({ detail }) => {
-      if (!detail.id_ejecucion || !['demo_finalizada', 'demo_cancelada', 'error'].includes(detail.tipo)) return;
-      if (detail.id_ejecucion === this.execution) this.finishDemo(detail);
-      else if (this.startingDemo) this.earlyDemo = detail;
+      if (!['demo_finalizada', 'demo_cancelada', 'error'].includes(detail.tipo)) return;
+      if (this.practice.enabled) {
+        if (detail.modo_demo !== 'registro' || detail.id_vehiculo !== vehicleId) return;
+        if (this.practice.isCurrentDemo(detail)) this.finishDemo(detail);
+        else if (this.startingDemo) this.earlyDemo = detail;
+      } else if (detail.id_ejecucion) {
+        if (detail.id_ejecucion === this.execution) this.finishDemo(detail);
+        else if (this.startingDemo) this.earlyDemo = detail;
+      }
     });
     this.api.addEventListener('disconnect', () => {
       this.revision++;
+      this.practice.clear();
       this.cameraOrder = null;
       this.commands = null;
       this.assist.cancel();
@@ -69,8 +84,16 @@ class DrivePage {
 
   async load() {
     const base = '/admin/vehiculos/' + vehicleId;
-    const [commands, demos] = await Promise.all([this.api.get(base + '/comandos'), this.api.get(base + '/demos')]);
+    const [commands, demos, vehicle] = await Promise.all([
+      this.api.get(base + '/comandos'), this.api.get(base + '/demos'), this.api.get(base).catch(() => null),
+    ]);
+    document.querySelector('.page-heading h1').textContent = 'Control · ' + (vehicle?.nombre || 'Vehículo ' + vehicleId);
     this.commands = resolveCommands(commands).map;
+    this.practice.commands = new Map(this.commands);
+    if (!this.practice.commands.has(0)) {
+      const stop = commands.filter(row => row.activo === 1 && /^(detener|parar|alto|stop)$/i.test(row.nombre.trim()));
+      if (stop.length === 1) this.practice.commands.set(0, stop[0].id_comando);
+    }
     this.commands.set(0, 0);
     $('demo').replaceChildren(new Option('Elige una demo', ''));
     for (const demo of demos.filter(d => d.activo === 1)) {
@@ -84,6 +107,7 @@ class DrivePage {
 
   finishDemo(detail) {
     this.execution = null;
+    this.practice.execution = null;
     if (detail.mensaje) this.show(detail.mensaje);
     else if (detail.tipo === 'demo_finalizada') {
       const { pasos_enviados: sent, pasos_sin_envio: skipped } = detail;
@@ -118,10 +142,12 @@ class DrivePage {
   }
 
   render() {
-    const armed = this.controller.snapshot().armed;
+    const { armed, active, pulse } = this.controller.snapshot();
     const cameraActive = this.assist?.cameraActive;
     const manual = armed && !cameraActive;
     $('arm').disabled = this.busy || !!this.stopping || armed || !!this.execution || cameraActive || !!this.assist?.running;
+    $('operation-mode').disabled = armed || !!this.stopping || !!this.busy || !!this.execution ||
+      !!this.assist?.running || !!cameraActive || !!this.assist?.listener;
     const manualSelected = manual;
     $('arm').setAttribute('aria-pressed', String(manualSelected));
     $('manual-hint').hidden = !manualSelected;
@@ -131,14 +157,21 @@ class DrivePage {
     $('demo').disabled = this.busy || !!this.execution;
     for (const stick of this.sticks || []) stick.element.setAttribute('aria-disabled', String(!manual));
     document.querySelectorAll('[data-code]').forEach(button => {
-      button.disabled = !manual || !this.commands?.has(Number(button.dataset.code));
+      const code = Number(button.dataset.code);
+      button.disabled = !manual || !this.commands?.has(code);
+      button.toggleAttribute('data-active', manual && (pulse === code || active === code));
     });
     this.assist?.render();
+
   }
 
   activate(source) {
     if (this.assist.cameraActive && source !== 'camera') return false;
     if (this.busy || this.stopping || !this.commands || this.execution || this.assist.running || document.hidden) return false;
+    if (this.practice.enabled && !this.practice.commands.has(0)) {
+      this.show('La práctica REST requiere un comando de parada identificable en el catálogo activo.');
+      return false;
+    }
     const camera = source === 'camera';
     const armed = this.controller.arm({
       commands: this.commands, transport: 'wifi', camera,
@@ -153,7 +186,7 @@ class DrivePage {
   }
 
   canUseAssist() {
-    return this.hasControlConnection() && !this.busy && !this.stopping && !this.execution &&
+    return !this.practice.enabled && this.hasControlConnection() && !this.busy && !this.stopping && !this.execution &&
       !this.controller.snapshot().armed && !document.hidden;
   }
 
@@ -196,6 +229,7 @@ class DrivePage {
   async send(code, options, camera = false) {
     if (!this.api.socket || (code !== 0 && options.stillWanted?.() === false)) return cancelledOrder;
     const revision = this.revision;
+    if (this.practice.enabled) return this.practice.move(code, options);
     const action = actions.find(item => item.code === code);
     const data = { codigo: action.wireCode ?? code, intencion: ++this.intent };
     if (camera && data.codigo === bucketDirections.right) data.mantener = true;
@@ -229,8 +263,12 @@ class DrivePage {
     this.resetSticks();
     try {
       const jobs = [];
-      if (this.api.socket) jobs.push(this.api.call('liberar'));
-      if (cancel) jobs.push(this.api.call('demo_cancelar'));
+      if (this.practice.enabled) {
+        if (cancel && this.practice.execution) jobs.push(this.practice.cancelDemo());
+      } else {
+        if (this.api.socket) jobs.push(this.api.call('liberar'));
+        if (cancel) jobs.push(this.api.call('demo_cancelar'));
+      }
       for (const result of await Promise.all(jobs)) {
         if (result.orden_enviada) this.show('Parada enviada por WebSocket');
         else if (result.salidas_confirmadas === false) this.show(result.mensaje);
@@ -251,10 +289,12 @@ class DrivePage {
       await release;
       if (revision !== this.revision || document.hidden) return;
       this.startingDemo = true;
-      const result = await this.api.call('demo_iniciar', { id_demo: id });
+      const result = this.practice.enabled ? await this.practice.startDemo(id)
+        : await this.api.call('demo_iniciar', { id_demo: id });
       if (revision !== this.revision || document.hidden) await this.stop();
-      else if (this.earlyDemo?.id_ejecucion === result.id_ejecucion) this.finishDemo(this.earlyDemo);
-      else this.execution = result.id_ejecucion;
+      else if (this.earlyDemo && (this.practice.enabled ? this.practice.isCurrentDemo(this.earlyDemo)
+        : this.earlyDemo.id_ejecucion === result.id_ejecucion)) this.finishDemo(this.earlyDemo);
+      else this.execution = this.practice.enabled ? result.id_demo : result.id_ejecucion;
     } catch (error) {
       this.show(error.message);
       await this.stop();
@@ -266,6 +306,7 @@ class DrivePage {
   }
 
   async heartbeat() {
+    if (this.practice.enabled) return;
     const revision = this.revision;
     if (this.renewing === revision || (!this.execution && !this.lease)) return;
     this.renewing = revision;

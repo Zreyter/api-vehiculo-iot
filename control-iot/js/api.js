@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { Connectivity } from './connectivity.js';
 
 export const vehicleId = config.vehicleId;
 const tokenKey = 'excavadora.access:' + new URL(config.api).origin;
@@ -39,19 +40,34 @@ export class VehicleApi extends EventTarget {
     return this.request(path, { method: 'POST', body: JSON.stringify(body), signal });
   }
 
-  async request(path, options) {
+  async request(path, options = {}) {
     const url = new URL(path, config.api);
-    const headers = { Authorization: 'Bearer ' + this.token };
+    const headers = this.token ? { Authorization: 'Bearer ' + this.token } : {};
     if (options.body) headers['Content-Type'] = 'application/json';
     if (url.hostname.endsWith('.ngrok-free.dev') || url.hostname.endsWith('.ngrok-free.app')) {
       headers['ngrok-skip-browser-warning'] = '1';
     }
-    const response = await fetch(url, { ...options, headers, cache: 'no-store' });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(typeof body.detail === 'string' ? body.detail : 'Error HTTP ' + response.status);
+    const deadline = new AbortController();
+    const abort = () => deadline.abort();
+    const timer = setTimeout(abort, 6000);
+    if (options.signal?.aborted) abort();
+    options.signal?.addEventListener('abort', abort, { once: true });
+    try {
+      const response = await fetch(url, { ...options, signal: deadline.signal, headers, cache: 'no-store' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(typeof body.detail === 'string' ? body.detail : 'Error HTTP ' + response.status);
+      }
+      if (response.status === 204) return null;
+      return await response.json();
+    } catch (error) {
+      if (deadline.signal.aborted) throw new Error('La solicitud fue interrumpida o venció su plazo.');
+      if (error instanceof SyntaxError) throw new Error('La API devolvió una respuesta no válida.');
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      options.signal?.removeEventListener('abort', abort);
     }
-    return response.json();
   }
 
   open(token, role) {
@@ -66,7 +82,7 @@ export class VehicleApi extends EventTarget {
         reject(new Error('La API no respondió a tiempo.'));
         socket.close();
       }, 6000);
-      socket.addEventListener('open', () => { clearTimeout(timer); resolve(); }, { once: true });
+      socket.addEventListener('open', () => { clearTimeout(timer); this.dispatchEvent(new Event('online')); resolve(); }, { once: true });
       socket.addEventListener('close', () => {
         clearTimeout(timer);
         reject(new Error('Revisa el código de acceso y la conexión con la API.'));
@@ -77,7 +93,10 @@ export class VehicleApi extends EventTarget {
       }, { once: true });
       socket.addEventListener('message', event => {
         if (this.socket !== socket) return;
-        const data = JSON.parse(event.data);
+        let data;
+        try { data = JSON.parse(event.data); } catch { return; }
+        if (!data || typeof data.tipo !== 'string' ||
+            (data.id_vehiculo != null && data.id_vehiculo !== vehicleId)) return;
         if (data.tipo === 'respuesta') {
           const pending = this.pending.get(data.id);
           if (data.ok) pending?.resolve(data.datos);
@@ -125,9 +144,21 @@ export class AccessForm {
     const reveal = form.querySelector('.login-reveal');
     const status = document.querySelector('#status');
     const notice = document.querySelector('#notice');
+    const connectivity = new Connectivity(api, vehicleId);
+    let reconnectTimer;
+    let accessVersion = 0;
+    let attempts = 0;
+    let resume = false;
+    const retry = () => {
+      clearTimeout(reconnectTimer);
+      if (!resume || !input.value) return;
+      setStatus('Reconectando…', 'pending');
+      reconnectTimer = setTimeout(() => void connect(), Math.min(15000, 750 * 2 ** Math.min(attempts++, 5)));
+    };
     const setStatus = (text, state) => {
       status.textContent = text;
       status.dataset.state = state;
+      if (state !== 'ready') connectivity.socket(text, state);
     };
     const swagger = document.querySelector('[data-swagger]');
     if (swagger) swagger.href = new URL('/docs', config.api);
@@ -139,15 +170,20 @@ export class AccessForm {
     reveal.addEventListener('click', () => showCode(input.type === 'password'));
     const connect = async (enteredByUser = false) => {
       if (submit.disabled || !form.checkValidity()) return;
+      clearTimeout(reconnectTimer);
       submit.disabled = true;
       showCode(false);
       notice.textContent = '';
       setStatus('Conectando…', 'pending');
       const code = input.value;
+      const version = accessVersion;
       try {
         await api.open(code, role);
         await onConnect();
+        if (version !== accessVersion) return;
         if (!api.socket) throw new Error('Se cerró la conexión con la API.');
+        attempts = 0;
+        resume = true;
         saveCode('sessionStorage', code);
         if (!saveCode('localStorage', remember.checked ? code : '') && remember.checked) {
           remember.checked = false;
@@ -159,23 +195,37 @@ export class AccessForm {
         }
         form.replaceWith(formPosition);
         content.hidden = false;
+        void connectivity.check();
         setStatus('Conectado', 'ready');
+        connectivity.socket('En línea', 'ready');
       } catch (error) {
+        if (version !== accessVersion) return;
         api.close();
         notice.textContent = error.message;
         setStatus('Sin conexión', 'offline');
       } finally {
         submit.disabled = false;
+        if (!api.socket && resume) retry();
       }
     };
     api.addEventListener('disconnect', () => {
       setStatus('Sin conexión', 'offline');
-      content.hidden = true;
-      formPosition.replaceWith(form);
+      if (role !== 'iot-monitor' || !resume) {
+        content.hidden = true;
+        formPosition.replaceWith(form);
+      }
+      retry();
     });
     form.addEventListener('submit', event => { event.preventDefault(); void connect(true); });
     remember.addEventListener('change', () => { if (!remember.checked) saveCode('localStorage', ''); });
     document.querySelector('#logout').addEventListener('click', () => {
+      accessVersion++;
+      resume = false;
+      content.hidden = true;
+      formPosition.replaceWith(form);
+      api.token = '';
+      setStatus('Sin conexión', 'offline');
+      clearTimeout(reconnectTimer);
       saveCode('sessionStorage', '');
       saveCode('localStorage', '');
       remember.checked = false;
@@ -183,6 +233,7 @@ export class AccessForm {
       showCode(false);
       api.close();
     });
+    window.addEventListener('pagehide', () => { resume = false; clearTimeout(reconnectTimer); });
     window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
     const saved = readCode('localStorage');
     remember.checked = Boolean(saved);

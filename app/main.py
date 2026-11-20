@@ -57,7 +57,7 @@ def create_app(settings: Settings | None = None, repository=None, catalog_reposi
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.browser_origins,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "DELETE"],
         allow_headers=["Authorization", "Content-Type", "ngrok-skip-browser-warning"],
     )
 

@@ -8,6 +8,7 @@
   <link rel="icon" href="./assets/favicon/excavadora-192.png">
   <link rel="apple-touch-icon" href="./assets/favicon/excavadora-192.png">
   <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./css/bootstrap-grid.min.css">
   <link rel="stylesheet" href="./css/styles.css">
   <script src="./js/drive-controller.js" defer></script>
   <script type="module" src="./js/app.js"></script>
@@ -16,11 +17,11 @@
   <header class="header">
     <a class="brand" href="./" aria-label="Excavadora IoT"><img src="./assets/favicon/excavadora-192.png" alt=""><span>Excavadora IoT</span></a>
     <nav class="main-nav" aria-label="Páginas">
-      <a href="./" aria-current="page">Control</a><a href="./monitor.html">Monitor</a>
+      <a href="./" aria-current="page">Control</a><a href="./monitor.html">Monitoreo</a>
     </nav>
     <a id="install" class="subtle apk-download" href="./assets/downloads/Mando-IoT-3.3.apk"
       download hidden aria-label="Instalar Mando IoT para Android">Instalar</a>
-    <button id="stop" type="button" class="danger stop-control" hidden>Parar</button>
+    <button id="stop" type="button" class="danger stop-control" hidden>Detener</button>
   </header>
   <main class="shell">
     <div class="title page-heading">
@@ -136,6 +137,11 @@
             <span id="device-status" class="status" data-state="pending" role="status">Consultando el vehículo</span>
           </div>
           <div class="toolbar-tools">
+            <label for="operation-mode">Modo</label>
+            <select id="operation-mode">
+              <option value="physical">Carro físico</option>
+              <option value="rest">Práctica REST · solo registro</option>
+            </select>
             <button id="open-bindings" type="button" aria-haspopup="dialog">Teclado y mando</button>
             <button id="logout" type="button">Salir</button>
           </div>
@@ -198,10 +204,16 @@
         <button type="button" class="primary" id="run-demo">Ejecutar</button>
       </section>
     </section>
+    <p id="receipt" role="status" hidden></p>
     <p id="notice" class="notice" aria-live="polite"></p>
   </main>
+  <aside class="connection-strip d-flex flex-wrap gap-2" aria-label="Conectividad">
+    <span>WebSocket WSS · <b id="ws-health">Desconectado</b></span>
+    <span title="Disponibilidad HTTPS del contrato OpenAPI">API AWS · 21 servicios · <b id="api-health">Comprobando</b></span>
+    <span>Amazon RDS · <b>Sin verificar</b></span>
+  </aside>
   <footer class="site-footer">
-    <span>Jose Efren Quintanilla Morales</span>
+    <span>Desarrollado por Jose Efren Quintanilla Morales · 2026</span>
     <a class="linkedin-link" href="https://www.linkedin.com/in/jose-efren-quintanilla-morales"
       rel="noreferrer" aria-label="Ver el perfil de Jose Efren Quintanilla Morales en LinkedIn">
       <img src="./assets/linkedin-in.png" width="28" height="24" alt="">

@@ -1,0 +1,40 @@
+name: Publicar Control y Monitoreo en Pages
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      pages: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/configure-pages@v5
+      - name: Construir el sitio
+        env:
+          IOT_API_URL: ${{ vars.IOT_API_URL }}
+          IOT_VEHICLE_ID: ${{ vars.IOT_VEHICLE_ID }}
+        run: node control-iot/build.mjs
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: control-iot/dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.site.outputs.page_url }}
+    steps:
+      - name: Publicar el sitio
+        id: site
+        uses: actions/deploy-pages@v4

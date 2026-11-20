@@ -1,5 +1,36 @@
 # Excavadora IoT 2.0.5
 
+## Prácticas 4.1 y 4.2 · Control y Monitoreo
+
+En **Control**, el selector **Modo** inicia en **Carro físico**, que conserva la conducción directa, cámara, voz, pulsos y parada por WebSocket. Para la prueba académica elige **Práctica REST · solo registro**, activa **Manual** y usa los mismos joysticks o teclas. Este modo guarda órdenes reales en el historial de la API y ejecuta demos de registro. El botón Detener y la liberación del joystick usan el comando de parada del catálogo. La API debe tener una correspondencia única para la parada. Los comandos se identifican por su ID de catálogo. La página relaciona la respuesta HTTP con el evento WSS del mismo vehículo usando los campos y la marca temporal que devuelve el backend.
+
+**Monitoreo** consulta inicialmente el estado y hasta diez movimientos individuales. Un movimiento WSS actualiza la tarjeta y agrupa una nueva consulta de historial. Los pasos de demo actualizan la tarjeta y el registro de eventos. Al recuperar conexión se vuelven a leer las dos fuentes. Cada documento abre una sesión WSS con su rol de Control o Monitor y la cierra al salir. Una pestaña independiente puede observar el mismo vehículo. Las fechas con zona se presentan en UTC y los valores MySQL sin zona conservan la hora literal con la marca «BD».
+
+| Función | Contrato existente |
+| --- | --- |
+| Vehículo, comandos, demos y estado | `GET /admin/vehiculos/{id}` y sus recursos `/comandos`, `/demos`, `/estado` con código de acceso |
+| Registrar movimiento | `POST /vehiculos/{id}/movimientos`, con `id_comando` y `origen` |
+| Consultar historial | `GET /vehiculos/{id}/historial?limite=10`, ordenado por fecha e ID descendentes |
+| Iniciar y cancelar demo REST | `POST /vehiculos/{id}/demos` con `id_demo` y `modo: registro`. Cancelación con `DELETE /vehiculos/{id}/demos/activa` |
+| Eventos | `/ws/vehiculos/{id}` vía WSS en producción. Un cliente externo puede usar el encabezado Authorization Bearer con el código autorizado, sin subprotocolo de navegador |
+| Disponibilidad | La sesión WSS indica su propia conexión. La comprobación HTTPS lee el contrato OpenAPI antes del acceso y `GET /vehiculos/{id}/dispositivo` con sesión. Una respuesta válida acredita esa operación incluso si la placa está desconectada. RDS queda «Sin verificar» porque esta versión carece de diagnóstico dedicado |
+
+**Ejecución local en Windows.** Arranca FastAPI con la configuración habitual y autoriza el origen local del frontend en `BROWSER_ORIGINS`. Desde la raíz del repositorio:
+
+```powershell
+$env:IOT_API_URL = 'http://127.0.0.1:8000'
+$env:IOT_VEHICLE_ID = '1'
+node control-iot/build.mjs
+python -m http.server 4173 --bind 127.0.0.1 --directory control-iot/dist
+```
+
+Abre `http://127.0.0.1:4173/`. La configuración y el cliente Fetch/WebSocket se comparten en `control-iot/js/api.js`; el movimiento REST se coordina en `practice-control.js`, el historial en `monitor.js` y los indicadores en `connectivity.js`. La interfaz utiliza la cuadrícula y utilidades de Bootstrap 5.3.3 distribuidas con el sitio.
+
+**Publicación en GitHub Pages.** El flujo manual «Publicar Control y Monitoreo en Pages» construye sólo `control-iot/dist`. En la configuración del repositorio, selecciona GitHub Actions como fuente de Pages y establece las variables públicas `IOT_API_URL` (origen HTTPS de FastAPI) e `IOT_VEHICLE_ID`. En EC2 debe estar autorizado el origen exacto de Pages para HTTP y WSS, y el preflight de cancelación debe admitir DELETE. El navegador solicita el código de acceso al usuario. El flujo queda disponible después de integrar su archivo en la rama predeterminada.
+
+**Comprobación para la entrega.** Desde el sitio publicado abre Control, Monitoreo y un cliente WSS independiente para el mismo vehículo. Registra avance, cambio de dirección y parada. Comprueba que una segunda sesión actualiza la tarjeta, que al superar diez registros se conservan los diez más recientes y que una demo completa o cancelada deja iguales los ID del historial individual. Interrumpe WSS y la consulta HTTPS por separado para verificar la recuperación. Completa las evidencias en teléfono real y escritorio.
+
+
 [Control](https://vehiculo-pi.vercel.app/) se puede instalar como app web. Los joysticks, **Parar**, las funciones y **Demo** se ajustan al alto disponible en vertical y horizontal. **Teclado y mando** abre los ajustes de teclas. **IA** reúne comandos por voz y conducción con la palma. Consulta la [configuración de IA](docs/CONTROL-WEB.md#control-con-ia).
 
 [Monitor WebSocket](https://vehiculo-pi.vercel.app/monitor.html) y [Swagger](https://cape-landside-tidy.ngrok-free.dev/docs) tienen sus propias páginas. La API procesa las órdenes, demos y planes por voz aunque el ESP8266 esté desconectado. Monitor muestra qué órdenes se enviaron a la placa y cuáles se procesaron en la API.

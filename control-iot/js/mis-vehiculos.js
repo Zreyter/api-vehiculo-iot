@@ -1,3 +1,4 @@
+import { abrirSecuencias } from './secuencias.js';
 import config from '../config.js';
 import { buyerKey, VehicleApi } from './api.js';
 
@@ -28,6 +29,10 @@ function tarjeta(unidad) {
     link.setAttribute('aria-label', nombre + ' ' + unidad.nombre);
     card.append(link);
   }
+  const editar = document.createElement('button');
+  editar.textContent = 'Mis demos';
+  editar.onclick = () => abrirSecuencias(api,unidad);
+  card.append(editar);
   return card;
 }
 

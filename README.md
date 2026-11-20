@@ -2,7 +2,7 @@
 
 ## Práctica 4.3 · Administración en desarrollo
 
-La rama `practica/4-3` integra acceso administrativo, inventario, catálogo de modelos y gestión de clientes sobre el mismo proyecto. La habilitación es independiente del mando y del monitor. Consulta el [diagnóstico, migraciones, pruebas y recuperación](docs/PRACTICA-4-3.md).
+La práctica 4.3 integra Administración, Mis vehículos, demos privadas y catálogo de exhibición con el mando y el monitor. La API de AWS delimita el acceso por rol y por unidad. Consulta el [diagnóstico, migraciones, contratos y recuperación](docs/PRACTICA-4-3.md) y la [matriz P01–P17](docs/MATRIZ-4-3.md).
 
 ## Prácticas 4.1 y 4.2 · Control y Monitoreo
 

@@ -16,3 +16,7 @@
 .admin-page [role="status"]:empty { margin: 0; }
 .unidades-personales { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,16rem),1fr)); gap: 1rem; margin-block: 1rem; }
 .unidades-personales a { display: inline-block; padding: .6rem .75rem; color: var(--ink); text-decoration: underline; }
+.pasos { padding-inline-start: 2rem; }
+.pasos li { padding: .6rem 0; border-bottom: 1px solid var(--line); }
+.pasos li label { margin-block: .35rem; }
+.admin-page td button { margin: .15rem; }

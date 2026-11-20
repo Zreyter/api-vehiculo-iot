@@ -1,7 +1,11 @@
+import { abrirSecuencias } from './secuencias.js';
+import { abrirUnidad } from './ficha-unidad.js';
+import { Connectivity } from './connectivity.js';
 import config from '../config.js';
 import { VehicleApi } from './api.js';
 
 const api = new VehicleApi();
+if (config.comercial) new Connectivity(api);
 const $ = id => document.getElementById(id);
 const login = $('acceso'), form = $('modelo'), editor = $('editor');
 const pageSize = 15;
@@ -53,7 +57,8 @@ function openEditor(item) {
 
 const columns = {
   modelos: ['ID','Modelo','Estado','Acción'],
-  unidades: ['ID','Unidad','Modelo','Estado','Propietario','Acción'],
+  unidades: ['ID','Unidad','Modelo','Estado','Propietario','Placa','Acción'],
+  auditoria: ['Evento','Fecha','Actor','Acción','Recurso','ID','Resultado'],
   clientes: ['ID','Cliente','Correo','Estado','Acción'],
 };
 
@@ -69,7 +74,8 @@ function table(rows, view) {
     const row = document.createElement('tr');
     const status = item.activo ? 'Activo' : 'Inactivo';
     let values;
-    if (view === 'unidades') values = [item.id_vehiculo, item.nombre, item.modelo, item.estado.replaceAll('_',' '),item.propietario || 'Sin asignar'];
+    if (view === 'auditoria') values = [item.id_evento,item.fecha,item.actor,item.accion,item.recurso,item.id_recurso,item.resultado];
+    if (view === 'unidades') values = [item.id_vehiculo, item.nombre, item.modelo, item.estado.replaceAll('_',' '),item.propietario || 'Sin asignar',item.conectado ? 'Conectada' : 'Desconectada'];
     if (view === 'clientes') values = [item.id_usuario, item.nombre, item.correo, status];
     if (view === 'modelos') values = [item.id_modelo, item.nombre, status];
     for (const value of values) row.append(node('td',value));
@@ -78,8 +84,12 @@ function table(rows, view) {
       boton.type = 'button';
       boton.disabled = item.estado === 'inactivo' && !item.id_usuario;
       boton.onclick = () => abrirAsignacion(item);
-      row.insertCell().append(boton);
-    } else {
+      const ficha = node('button','Editar unidad'), demos = node('button','Demos de fábrica');
+      ficha.onclick = () => abrirUnidad(api,item,refresh);
+      demos.disabled = item.estado === 'inactivo';
+      demos.onclick = () => abrirSecuencias(api,item,true);
+      row.insertCell().append(ficha,boton,demos);
+    } else if (view !== 'auditoria') {
       const edit = node('button','Editar');
       edit.type = 'button';
       edit.setAttribute('aria-label','Editar ' + item.nombre);
@@ -100,8 +110,8 @@ async function refresh() {
   $('filas').replaceChildren();
   $('rango').textContent = '';
   $('aviso').textContent = 'Consultando inventario…';
-  $('nuevo').hidden = view === 'unidades';
-  $('nuevo').textContent = view === 'clientes' ? 'Nuevo cliente' : 'Nuevo modelo';
+  $('nuevo').hidden = view === 'auditoria';
+  $('nuevo').textContent = view === 'clientes' ? 'Nuevo cliente' : view === 'unidades' ? 'Nueva unidad' : 'Nuevo modelo';
   $('anterior').disabled = $('siguiente').disabled = true;
   const params = new URLSearchParams({ buscar: filter, inicio: start, limite: pageSize + 1 });
   try {
@@ -152,7 +162,7 @@ $('vista').onchange = () => { start = 0; void refresh(); };
 $('filtro').onsubmit = event => { event.preventDefault(); filter = $('filtro').elements.buscar.value.trim(); start = 0; void refresh(); };
 $('anterior').onclick = () => { start = Math.max(0,start-pageSize); void refresh(); };
 $('siguiente').onclick = () => { start += pageSize; void refresh(); };
-$('nuevo').onclick = () => openEditor(null);
+$('nuevo').onclick = () => $('vista').value === 'unidades' ? abrirUnidad(api,null,refresh) : openEditor(null);
 $('cancelar').onclick = () => editor.close();
 form.onsubmit = async event => {
   event.preventDefault();

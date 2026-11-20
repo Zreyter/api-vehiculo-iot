@@ -65,7 +65,7 @@ La comprobación cubre el catálogo por unidad, estado, historial, movimientos, 
 ## Ensayo de migración y recuperación
 
 1. Conservar un respaldo privado del esquema original con estructura, datos y rutinas, en una instantánea transaccional. Restaurarlo en un MySQL aislado. La cuenta de despliegue necesita permisos adecuados para leer las definiciones de rutinas. Revisar el usuario DEFINER y los permisos de ejecución de la copia.
-2. Capturar conteos e identificadores antes de la migración. Aplicar, en orden, [001_catalogo.sql](../migrations/4.3/001_catalogo.sql), [002_unidades_existentes.sql](../migrations/4.3/002_unidades_existentes.sql), [003_verificar.sql](../migrations/4.3/003_verificar.sql) y [004_propiedad.sql](../migrations/4.3/004_propiedad.sql). Revisar las unidades sin coincidencia de modelo. Una unidad sin clasificar permanece fuera de toda exhibición pública.
+2. Capturar conteos e identificadores antes de la migración. Aplicar, en orden, [001_catalogo.sql](../migrations/4.3/001_catalogo.sql), [002_unidades_existentes.sql](../migrations/4.3/002_unidades_existentes.sql), [003_verificar.sql](../migrations/4.3/003_verificar.sql), [004_propiedad.sql](../migrations/4.3/004_propiedad.sql) y [005_demos_exhibicion.sql](../migrations/4.3/005_demos_exhibicion.sql). Revisar las unidades sin coincidencia de modelo. Una unidad sin clasificar permanece fuera de toda exhibición pública.
 3. En el ensayo del 20 de noviembre de 2026 se restauró el respaldo de RDS MySQL 8.4.11 en MySQL 8.0.42 local. Se aplicó dos veces la secuencia. Se compararon las seis tablas originales por conteo y huella de sus filas ordenadas por clave primaria. Permanecieron iguales los cuatro vehículos, veinte comandos, cinco demos, quince pasos, tres estados y 2.605 registros de historial. Se vincularon cuatro unidades. Se conservaron los 21 procedimientos y se invocó el procedimiento de historial sobre la copia.
 4. Para volver a 4.2, utilizar un destino separado del inventario privado. La versión anterior usa código compartido y admite historial público. El DDL de MySQL puede efectuar commit implícito. Para retirar también el esquema comercial, restaurar la copia verificada en una base separada, conciliar las escrituras posteriores y validar el cambio de destino. Conservar el historial y la auditoría antes de cualquier sustitución. Una vuelta sólo de aplicación mantiene las nuevas restricciones referenciales sobre las unidades vinculadas.
 5. Antes del despliegue definitivo repetir el ensayo sobre MySQL 8.4 compatible con el motor de RDS y obtener respaldo actualizado. El respaldo con datos y los archivos de acceso permanecen fuera de Git.
@@ -73,7 +73,7 @@ La comprobación cubre el catálogo por unidad, estado, historial, movimientos, 
 ## Ejecutar en un ambiente de prueba
 
 - Backend: configurar las variables MySQL del proyecto para la copia restaurada. Activar `COMERCIAL_HABILITADO=true`. Después de las migraciones, ejecutar `python -m scripts.crear_admin_comercial` desde la raíz. La clave se introduce en forma interactiva. Arrancar con `python -m uvicorn app.main:app`.
-- Frontend: establecer `IOT_COMERCIAL_HABILITADO=1` e `IOT_API_URL` con el origen de esa API. Compilar con `node control-iot/build.mjs` y servir `control-iot/dist`. Abrir `administracion.html` para asignar unidades y `mis-vehiculos.html` para acceder como comprador. Ambos indicadores están desactivados por defecto. Con la administración habilitada, CORS incorpora PUT para los orígenes autorizados.
+- Frontend: establecer `IOT_COMERCIAL_HABILITADO=1` e `IOT_API_URL` con el origen de esa API. Compilar con `node control-iot/build.mjs` y servir `control-iot/dist`. Abrir `administracion.html` para asignar unidades y `mis-vehiculos.html` para acceder como comprador. En Vercel producción la compilación habilita el acceso comercial por defecto. GitHub Pages usa la variable `IOT_COMERCIAL_HABILITADO` del repositorio. Con la administración habilitada, CORS incorpora PUT para los orígenes autorizados.
 - GitHub Pages y Vercel compilan la misma carpeta. La variable pública de compilación es la misma en ambos. Las rutas de navegación y archivos son relativas para soportar la subruta de Pages.
 - Para probar sesiones y transacciones, configurar `MYSQL43_TEST_PORT` y `MYSQL43_TEST_PASSWORD` para una instancia MySQL **local de ensayo** y ejecutar `python -m unittest tests.test_comercial_mysql -v`. La prueba crea un esquema con nombre aleatorio y lo retira al finalizar.
 
@@ -83,4 +83,32 @@ La prueba en Edge cubrió ingreso, creación, edición y desactivación de model
 
 En el ensayo de propiedad se probaron dos compradores, el cambio de propietario con canales abiertos, el bloqueo del código anterior sobre unidades privadas y un comprador con varias unidades. En Edge se verificó la selección, el control y el historial en la raíz y en la subruta de Pages con la API local. Los sitios públicos de 4.1/4.2 entregaron estado por WSS y diez movimientos desde AWS.
 
-Quedan pendientes el ciclo completo de altas y bajas de unidades, la autorización para soporte, las demos privadas, las sesiones de exhibición, las pruebas físicas y la matriz P01–P17 de tres plataformas. La producción continúa en la revisión de 4.1/4.2.
+## Unidades, demos y exhibición
+
+Administración permite dar de alta una unidad, vincularla con un modelo activo, editarla y darla de baja conservando su ficha y su historial. La placa se identifica por el ID físico y conserva su propia credencial. La columna **Placa** se lee del servidor que recibe la conexión. Cambiar el modelo o dar de baja una unidad con comprador requiere retirar primero la asignación.
+
+| Método y recurso | Permiso y resultado |
+| --- | --- |
+| GET `/salud` | Público. Informa por separado la disponibilidad de la API y el resultado de una consulta real a MySQL |
+| POST `/comercial/unidades` | Administración. Alta de unidad con modelo y estado |
+| PUT `/comercial/unidades/{unidad}` | Administración. Edición y baja lógica |
+| GET `/comercial/auditoria` | Administración. Eventos ordenados con actor, fecha, acción, recurso y resultado |
+| GET, POST `/comercial/unidades/{unidad}/secuencias` | Catálogo y alta de demos. Administración edita las de fábrica. Cada comprador edita sus propias demos |
+| GET, PUT, DELETE `/comercial/unidades/{unidad}/secuencias/{demo}` | Consulta, edición y baja lógica. Los pasos ordenados se guardan junto con la ficha y su auditoría |
+| GET `/exhibicion/catalogo` | Catálogo público de modelos activos. Disponibilidad de unidades condicionada al modo de exhibición |
+| WSS `/exhibicion/ws/{unidad}` | Sesión exclusiva para una unidad activa de exhibición sin comprador, con placa preparada y activación explícita en AWS |
+
+Cada demo nueva utiliza comandos vigentes de la unidad. El editor admite hasta 32 pasos y 120 segundos totales, incluidas las pausas. Control usa el ejecutor de DEMO existente y DETENER conserva su prioridad. Un cambio de propietario retira la visibilidad y el permiso de ejecución de las demos privadas del titular anterior. Los pasos de DEMO siguen fuera del historial individual. La lectura de pasos y la ejecución verifican los permisos en el servidor.
+
+La migración 005 agrega una relación entre demo privada y comprador y un registro de sesiones de exhibición. La restricción única de unidad reservada impide dos reservas vigentes. El canal público aplica un límite de 45 segundos, pulsos de 200 ms para los códigos de pala permitidos y un latido. DETENER termina la sesión. El servidor solicita parada y registra el cierre al expirar, al desconectar o al pulsar DETENER. El watchdog local del firmware cubre la pérdida del enlace. `EXHIBICION_HABILITADA=false` mantiene la exhibición sin disponibilidad pública.
+
+```mermaid
+erDiagram
+    demos ||--o| comercial_demos_privadas : clasifica
+    comercial_usuarios ||--o{ comercial_demos_privadas : crea
+    comercial_unidades ||--o{ comercial_exhibiciones : reserva
+    demos ||--o{ demo_movimientos : ordena
+    comandos ||--o{ demo_movimientos : usa
+```
+
+La persona propietaria confirmó desde su celular que el carro se mueve y se detiene. La evaluación colaborativa de las tres plataformas y la prueba física supervisada de invitados requieren a los participantes y una unidad destinada a exhibición. [Matriz P01–P17](MATRIZ-4-3.md)

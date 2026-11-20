@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prueba nuestros vehículos IoT</title>
+  <link rel="icon" href="./assets/favicon/excavadora-192.png">
+  <link rel="stylesheet" href="./css/styles.css">
+  <link rel="stylesheet" href="./css/administracion.css">
+  <script type="module" src="./js/exhibicion.js"></script>
+</head>
+<body class="monitor-page admin-page">
+  <header class="header">
+    <a class="brand" href="./"><img src="./assets/favicon/excavadora-192.png" alt="">Excavadora IoT</a>
+    <nav class="main-nav" aria-label="Páginas"><a href="./mis-vehiculos.html">Mis vehículos</a><a href="./exhibicion.html" aria-current="page">Exhibición</a></nav>
+  </header>
+  <main class="shell">
+    <h1>Prueba nuestros vehículos IoT</h1>
+    <p id="aviso" role="status" aria-live="polite">Consultando catálogo…</p>
+    <section class="card" id="prueba" hidden>
+      <h2>Prueba de exhibición</h2>
+      <p>Tiempo restante <output id="tiempo"></output></p>
+      <div id="acciones"></div>
+      <button type="button" id="detener">Detener y terminar</button>
+    </section>
+    <div id="catalogo" class="unidades-personales"></div>
+  </main>
+  <footer class="site-footer">Desarrollado por Jose Efren Quintanilla Morales · 2026</footer>
+</body>
+</html>

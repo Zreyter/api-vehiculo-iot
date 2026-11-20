@@ -17,7 +17,7 @@ const comercial = process.env.IOT_COMERCIAL_HABILITADO
   ? process.env.IOT_COMERCIAL_HABILITADO === '1'
   : process.env.VERCEL_ENV === 'production';
 await mkdir(dist, { recursive: true });
-for (const name of ['index.html', 'monitor.html', 'administracion.html', 'mis-vehiculos.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'assets']) {
+for (const name of ['index.html', 'monitor.html', 'administracion.html', 'mis-vehiculos.html', 'exhibicion.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'assets']) {
   await cp(new URL(name, root), new URL(name, dist), { recursive: true });
 }
 await cp(new URL('../app/panel/drive-controller.js', root), new URL('js/drive-controller.js', dist));

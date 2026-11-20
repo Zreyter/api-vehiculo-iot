@@ -30,7 +30,7 @@
       <section class="card">
         <div class="section-title"><h2>Inventario comercial</h2><button id="nuevo" type="button">Nuevo modelo</button></div>
         <div class="admin-tools">
-          <label>Mostrar<select id="vista"><option value="modelos">Modelos</option><option value="unidades">Unidades físicas</option><option value="clientes">Clientes</option></select></label>
+          <label>Mostrar<select id="vista"><option value="modelos">Modelos</option><option value="unidades">Unidades físicas</option><option value="clientes">Clientes</option><option value="auditoria">Auditoría</option></select></label>
           <form id="filtro"><label>Buscar<input type="search" maxlength="80" name="buscar"></label><button>Buscar</button></form>
         </div>
         <div class="table-scroll"><table><thead id="cabecera"></thead><tbody id="filas"></tbody></table></div>
@@ -58,6 +58,11 @@
       </form>
     </dialog>
   </main>
+  <aside class="connection-strip" aria-label="Conectividad">
+    <span>WebSocket · <b id="ws-health">Sin sesión</b></span>
+    <span>API AWS · <b id="api-health">Sin verificar</b></span>
+    <span>Amazon RDS · <b id="rds-health">Sin verificar</b></span>
+  </aside>
   <footer class="site-footer">Desarrollado por Jose Efren Quintanilla Morales · 2026</footer>
 </body>
 </html>

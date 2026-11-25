@@ -139,24 +139,33 @@ class OperacionComercial(ComercialRepository):
                 raise ServiceError(404, "No hay pasos disponibles para esta demo.")
             return pasos
 
-    def exhibicion(self):
+    def exhibicion(self, compartidas=()):
+        compartidas = tuple(compartidas)
+        seleccion = ",".join(["%s"] * len(compartidas)) or "NULL"
         with self.database.transaction() as cn, cn.cursor(dictionary=True) as cur:
             cur.execute("SELECT id_modelo,nombre,descripcion FROM comercial_modelos WHERE activo=1 ORDER BY nombre")
             modelos=cur.fetchall()
-            cur.execute("""SELECT u.id_modelo,u.id_vehiculo,v.nombre,EXISTS(
+            cur.execute(f"""SELECT u.id_modelo,u.id_vehiculo,v.nombre,EXISTS(
                            SELECT 1 FROM comercial_exhibiciones e WHERE e.unidad_reservada=u.id_vehiculo
                            AND e.vence>UTC_TIMESTAMP(6)) reservada FROM comercial_unidades u
                            JOIN vehiculos v USING(id_vehiculo) JOIN comercial_modelos m USING(id_modelo)
                            LEFT JOIN comercial_propiedad p USING(id_vehiculo)
-                           WHERE u.estado='exhibicion' AND v.activo=1 AND m.activo=1 AND p.id_usuario IS NULL""")
+                           WHERE v.activo=1 AND m.activo=1 AND
+                           ((u.estado='exhibicion' AND p.id_usuario IS NULL) OR
+                            (u.estado='asignado' AND p.id_usuario IS NOT NULL AND
+                             u.id_vehiculo IN ({seleccion})))""", compartidas)
             return modelos,cur.fetchall()
 
-    def reservar(self, unidad, segundos, permitidos):
+    def reservar(self, unidad, segundos, permitidos, compartidas=()):
+        compartidas = tuple(compartidas)
+        seleccion = ",".join(["%s"] * len(compartidas)) or "NULL"
         with self.database.transaction(write=True) as cn,cn.cursor(dictionary=True) as cur:
-            cur.execute("""SELECT 1 FROM comercial_unidades u JOIN vehiculos v USING(id_vehiculo)
+            cur.execute(f"""SELECT 1 FROM comercial_unidades u JOIN vehiculos v USING(id_vehiculo)
                            JOIN comercial_modelos m USING(id_modelo) LEFT JOIN comercial_propiedad p USING(id_vehiculo)
-                           WHERE u.id_vehiculo=%s AND u.estado='exhibicion' AND v.activo=1 AND m.activo=1
-                           AND p.id_usuario IS NULL FOR UPDATE""",(unidad,))
+                           WHERE u.id_vehiculo=%s AND v.activo=1 AND m.activo=1 AND
+                           ((u.estado='exhibicion' AND p.id_usuario IS NULL) OR
+                            (u.estado='asignado' AND p.id_usuario IS NOT NULL AND
+                             u.id_vehiculo IN ({seleccion}))) FOR UPDATE""",(unidad,*compartidas))
             if not cur.fetchone():
                 raise ServiceError(403,"Unidad fuera de exhibición.")
             cur.execute("SELECT codigo,nombre FROM comandos WHERE id_vehiculo=%s AND activo=1",(unidad,))

@@ -175,7 +175,7 @@ class DrivePage {
     const camera = source === 'camera';
     const armed = this.controller.arm({
       commands: this.commands, transport: 'wifi', camera,
-      pulseCodes: camera ? [] : [bucketDirections.right],
+      pulseCodes: [],
     });
     if (armed) this.show('');
     return armed;
@@ -232,7 +232,7 @@ class DrivePage {
     if (this.practice.enabled) return this.practice.move(code, options);
     const action = actions.find(item => item.code === code);
     const data = { codigo: action.wireCode ?? code, intencion: ++this.intent };
-    if (camera && data.codigo === bucketDirections.right) data.mantener = true;
+    if (data.codigo === bucketDirections.right && options.duration === undefined) data.mantener = true;
     if (data.codigo === 9) data.pulso_ms = action.duration;
     if (options.duration !== undefined) data.duracion_ms = options.duration;
     const result = await this.api.call('entrada', data);

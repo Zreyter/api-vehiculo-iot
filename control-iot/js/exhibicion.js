@@ -75,7 +75,42 @@ function iniciar(unidad) {
         const boton = document.createElement('button');
         boton.type = 'button';
         boton.textContent = nombre;
-        boton.onclick = () => { liberar(); enviar({codigo:Number(codigo)}); };
+        if (Number(codigo) === 4) {
+          boton.textContent = 'Pala derecha (mantener)';
+          boton.style.touchAction = 'none';
+          let sostenido = false;
+          const comenzar = () => {
+            if (sostenido || !conducir) return;
+            liberar();
+            sostenido = true;
+            conducir.mover(4);
+          };
+          const terminar = () => {
+            if (!sostenido) return;
+            sostenido = false;
+            liberar();
+          };
+          boton.addEventListener('pointerdown', e => {
+            if (e.button !== 0 || sostenido) return;
+            e.preventDefault();
+            boton.setPointerCapture(e.pointerId);
+            comenzar();
+          });
+          for (const evento of ['pointerup','pointercancel','lostpointercapture','blur']) {
+            boton.addEventListener(evento, terminar);
+          }
+          boton.addEventListener('keydown', e => {
+            if (![' ','Enter'].includes(e.key)) return;
+            e.preventDefault();
+            if (!e.repeat) comenzar();
+          });
+          boton.addEventListener('keyup', e => {
+            if (![' ','Enter'].includes(e.key)) return;
+            e.preventDefault();
+            terminar();
+          });
+          boton.onclick = e => e.preventDefault();
+        } else boton.onclick = () => { liberar(); enviar({codigo:Number(codigo)}); };
         return boton;
       }));
       $('prueba').hidden = false;

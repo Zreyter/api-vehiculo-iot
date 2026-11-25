@@ -75,15 +75,15 @@ function iniciar(unidad) {
         const boton = document.createElement('button');
         boton.type = 'button';
         boton.textContent = nombre;
-        if (Number(codigo) === 4) {
-          boton.textContent = 'Pala derecha (mantener)';
+        if ([1,4].includes(Number(codigo))) {
+          boton.textContent = Number(codigo) === 1 ? 'Pala izquierda (mantener)' : 'Pala derecha (mantener)';
           boton.style.touchAction = 'none';
           let sostenido = false;
           const comenzar = () => {
             if (sostenido || !conducir) return;
             liberar();
             sostenido = true;
-            conducir.mover(4);
+            conducir.mover(Number(codigo));
           };
           const terminar = () => {
             if (!sostenido) return;

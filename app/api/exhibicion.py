@@ -8,13 +8,13 @@ from app.core.errors import ServiceError
 router = APIRouter(prefix="/exhibicion",tags=["Prueba de invitados"])
 DURACION = 45
 PULSO_MS = 200
-CODIGOS = (1,4)
+CODIGOS = (1,2,3,4,10,13)
 
 
 @router.get("/catalogo")
 async def catalogo(request: Request):
     app=request.app.state
-    modelos,unidades=await asyncio.to_thread(app.comercial.exhibicion)
+    modelos,unidades=await asyncio.to_thread(app.comercial.exhibicion,app.settings.exhibicion_unidades_compartidas)
     for modelo in modelos:
         modelo["unidades"]=[]
     por_id={m["id_modelo"]:m for m in modelos}
@@ -44,7 +44,8 @@ async def prueba(socket: WebSocket, unidad: int):
             estado=app.device_service.status(unidad)
             if not estado["listo"] or not estado["demo_temporizada"]:
                 raise ServiceError(409,"No hay una placa disponible para la prueba.")
-            reserva,comandos=await asyncio.to_thread(app.comercial.reservar,unidad,DURACION,CODIGOS)
+            reserva,comandos=await asyncio.to_thread(app.comercial.reservar,unidad,DURACION,CODIGOS,
+                                                   app.settings.exhibicion_unidades_compartidas)
             vence=asyncio.get_running_loop().time()+DURACION
             lease=(await app.device_service.acquire(unidad))["lease_id"]
         await socket.send_json({"tipo":"inicio","segundos":max(0,int(vence-asyncio.get_running_loop().time())),"comandos":comandos})
@@ -61,13 +62,13 @@ async def prueba(socket: WebSocket, unidad: int):
                 if msg=={"accion":"latido"}:
                     await app.device_service.renew(unidad,lease)
                     continue
-                if not isinstance(msg,dict) or set(msg)!={"codigo"} or type(msg["codigo"]) is not int or msg["codigo"] not in comandos:
+                if not isinstance(msg,dict) or set(msg)!={"codigo"} or type(msg["codigo"]) is not int or (msg["codigo"] != 0 and msg["codigo"] not in comandos):
                     raise ServiceError(403,"Comando fuera de la prueba.")
                 ahora=asyncio.get_running_loop().time()
-                if ahora-ultimo<1:
+                if msg["codigo"] and ahora-ultimo<.12:
                     continue
-                ultimo=ahora
-                resultado=await app.device_service.command(unidad,lease,msg["codigo"],demo_ms=PULSO_MS,record=False)
+                ultimo=ahora if msg["codigo"] else 0
+                resultado=await app.device_service.command(unidad,lease,msg["codigo"],demo_ms=PULSO_MS if msg["codigo"] else None,record=False)
                 await socket.send_json({"tipo":"orden","enviada":bool(resultado.get("orden_enviada") or resultado.get("salidas_confirmadas"))})
     except TimeoutError:
         motivo="tiempo_agotado"

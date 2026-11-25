@@ -20,6 +20,11 @@
     <section class="card" id="prueba" hidden>
       <h2>Prueba de exhibición</h2>
       <p>Tiempo restante <output id="tiempo"></output></p>
+      <p id="ayuda-palanca">Mantén la palanca para mover y suéltala para detener. También puedes usar las flechas o W A S D al enfocarla.</p>
+      <div class="stick" id="exhibicion-stick" role="group" tabindex="0" aria-label="Palanca de la excavadora" aria-describedby="ayuda-palanca" aria-disabled="true">
+        <span class="north" aria-hidden="true">↑</span><span class="west" aria-hidden="true">←</span><span class="east" aria-hidden="true">→</span><span class="south" aria-hidden="true">↓</span><span class="knob"></span>
+      </div>
+      <p class="stick-legend">↑ Adelante · ↓ Atrás · ← Giro a la izquierda · → Giro a la derecha</p>
       <div id="acciones"></div>
       <button type="button" id="detener">Detener y terminar</button>
     </section>

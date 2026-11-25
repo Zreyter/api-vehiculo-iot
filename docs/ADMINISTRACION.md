@@ -123,3 +123,16 @@ python -m unittest discover -v
 ```
 
 Las pruebas usan SP simulados, con firmas obtenidas de los CSV. No se conectan a MySQL ni crean/eliminan registros reales. Hay que completar la comprobación manual contra tu MySQL; el diagnóstico solo consulta metadatos y recursos existentes.
+
+## Movimientos desde la Administración web
+
+En Administración, selecciona **Unidades físicas** y pulsa **Movimientos** en la unidad correspondiente. El catálogo incluye movimientos activos y dados de baja.
+
+- **Editar** permite guardar nombre, código y descripción; conserva el estado actual.
+- **Dar de baja** pide confirmación y guarda `activo: 0` mediante PUT. Conserva el registro, su ID y sus relaciones con el historial y las demos.
+- **Reactivar** pide confirmación y guarda `activo: 1`.
+- **Actualizar movimientos** vuelve a consultar el catálogo de esa unidad.
+
+La pantalla usa la sesión del administrador y las rutas existentes `/admin/vehiculos/{id_vehiculo}/comandos`. El servidor mantiene la validación de rol, pertenencia, códigos duplicados y exclusión durante una operación activa. No requiere migración ni cambios en la API. La baja impide ejecutar el movimiento; las demos que lo usen deberán ajustarse antes de ejecutarlas.
+
+Verificación de interfaz realizada con API simulada: acceso por unidad; edición de nombre, descripción y código; conservación de la baja al editar; cancelación y confirmación de baja; reactivación; rechazo de código duplicado sin perder el formulario; retorno al acceso al recibir 401. No se modificaron movimientos reales durante estas pruebas.

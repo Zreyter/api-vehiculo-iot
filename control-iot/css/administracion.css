@@ -20,3 +20,12 @@
 .pasos li { padding: .6rem 0; border-bottom: 1px solid var(--line); }
 .pasos li label { margin-block: .35rem; }
 .admin-page td button { margin: .15rem; }
+
+.admin-page .movement-dialog { width: min(48rem,95vw); max-height: 90dvh; overflow-y: auto; }
+.movement-content { display: grid; gap: .75rem; }
+.movement-content h2, .movement-content p { margin: 0; }
+.movement-content .section-title { flex-wrap: wrap; gap: .65rem; }
+.movement-content > button { justify-self: start; }
+.movement-content .admin-form { width: min(100%,28rem); }
+.movement-content caption { text-align: start; padding-block: .5rem; font-weight: 700; }
+.movement-content [hidden] { display: none; }

@@ -1,3 +1,4 @@
+import { abrirMovimientos } from './movimientos.js';
 import { abrirSecuencias } from './secuencias.js';
 import { abrirUnidad } from './ficha-unidad.js';
 import { Connectivity } from './connectivity.js';
@@ -22,6 +23,7 @@ function session(active, message = '') {
     api.token = '';
     $('metricas').replaceChildren();
     $('filas').replaceChildren();
+    for (const dialog of document.querySelectorAll('[data-movimientos]')) dialog.close();
     if (editor.open) editor.close();
     if ($('asignacion').open) $('asignacion').close();
   }
@@ -88,7 +90,11 @@ function table(rows, view) {
       ficha.onclick = () => abrirUnidad(api,item,refresh);
       demos.disabled = item.estado === 'inactivo';
       demos.onclick = () => abrirSecuencias(api,item,true);
-      row.insertCell().append(ficha,boton,demos);
+      const movimientos = node('button','Movimientos');
+      movimientos.type = 'button';
+      movimientos.setAttribute('aria-label', 'Administrar movimientos de ' + item.nombre);
+      movimientos.onclick = () => abrirMovimientos(api,item,err => session(false,err.message));
+      row.insertCell().append(ficha,boton,movimientos,demos);
     } else if (view !== 'auditoria') {
       const edit = node('button','Editar');
       edit.type = 'button';

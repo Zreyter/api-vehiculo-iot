@@ -133,6 +133,8 @@ En Administración, selecciona **Unidades físicas** y pulsa **Movimientos** en 
 - **Reactivar** pide confirmación y guarda `activo: 1`.
 - **Actualizar movimientos** vuelve a consultar el catálogo de esa unidad.
 
-La pantalla usa la sesión del administrador y las rutas existentes `/admin/vehiculos/{id_vehiculo}/comandos`. El servidor mantiene la validación de rol, pertenencia, códigos duplicados y exclusión durante una operación activa. No requiere migración ni cambios en la API. La baja impide ejecutar el movimiento; las demos que lo usen deberán ajustarse antes de ejecutarlas.
+La pantalla usa la sesión del administrador y las rutas existentes `/admin/vehiculos/{id_vehiculo}/comandos`. El servidor mantiene la validación de rol, pertenencia, códigos duplicados y exclusión durante una operación activa. No requiere migración de base de datos. La baja impide ejecutar el movimiento; las demos que lo usen deberán ajustarse antes de ejecutarlas.
+
+La API debe incluir la corrección de permisos del 25 de noviembre de 2026 en `app/core/security.py` y `app/repositories/comercial.py`: GET del catálogo de comandos permite al administrador consultar la unidad sin exigir propiedad. El comprador conserva la comprobación de propiedad y no puede editar comandos. Las rutas de control conservan sus permisos anteriores. Después de actualizar estos dos archivos en EC2, reinicia `vehiculo-iot.service`. Publicar solo el frontend en Vercel no aplica esta corrección.
 
 Verificación de interfaz realizada con API simulada: acceso por unidad; edición de nombre, descripción y código; conservación de la baja al editar; cancelación y confirmación de baja; reactivación; rechazo de código duplicado sin perder el formulario; retorno al acceso al recibir 401. No se modificaron movimientos reales durante estas pruebas.

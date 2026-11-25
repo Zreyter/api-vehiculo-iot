@@ -64,8 +64,12 @@ class ComercialRepository:
         with self.administrador(token):
             pass
 
-    def permiso_unidad(self, token, unidad):
-        with self.cuenta(token, rol="usuario") as (cur, actor):
+    def permiso_unidad(self, token, unidad, *, permitir_admin=False):
+        with self.cuenta(token, rol=None if permitir_admin else "usuario") as (cur, actor):
+            if permitir_admin and actor["rol"] == "admin":
+                return actor["id_usuario"], float(actor["segundos"])
+            if actor["rol"] != "usuario":
+                raise ServiceError(403, "Esta cuenta no tiene permiso para la operación.")
             if unidad is not None:
                 cur.execute("""SELECT 1 FROM comercial_propiedad p JOIN vehiculos v USING(id_vehiculo)
                                JOIN comercial_unidades u USING(id_vehiculo)

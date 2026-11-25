@@ -46,6 +46,9 @@ async def require_control_token(
         ruta = request.scope["route"].path
         if ruta.startswith("/admin/") and (request.method != "GET" or unidad is None):
             await asyncio.to_thread(app.comercial.verificar_admin, token)
+        elif ruta == "/admin/vehiculos/{id_vehiculo}/comandos":
+            # El administrador necesita leer el catálogo que puede modificar.
+            await asyncio.to_thread(app.comercial.permiso_unidad, token, unidad, permitir_admin=True)
         else:
             await permiso_operativo(app, token, unidad)
         yield

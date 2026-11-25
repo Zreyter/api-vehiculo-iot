@@ -27,7 +27,7 @@ Los errores de negocio devuelven, por ejemplo, `{"detail":"Vehículo inexistente
 
 ### Vehículos, comandos y estado bajo `/admin`
 
-Las lecturas operativas de ficha, estado, comandos, demos y pasos bajo `/admin` **requieren el permiso U**. Las mutaciones de catálogos y el listado global requieren A.
+Las lecturas operativas de ficha, estado, demos y pasos bajo `/admin` **requieren el permiso U**. La lectura de comandos admite **A o U**: el administrador consulta el catálogo para editar, dar de baja o reactivar movimientos; el comprador solo consulta los de su unidad asignada. Las mutaciones de catálogos y el listado global requieren A.
 
 | Nº | Método y ruta | Entrada | Permiso | Éxito | Validaciones específicas | Uso |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -37,7 +37,7 @@ Las lecturas operativas de ficha, estado, comandos, demos y pasos bajo `/admin` 
 | 4 | `PUT /admin/vehiculos/{v}` | v + Vehículo edición | A | 200 · Vehículo | 404 inexistente. 409 si intenta desactivar una unidad asignada o está en operación | Mantenimiento técnico |
 | 5 | `DELETE /admin/vehiculos/{v}` | v | A | 204 en modo legado | 409 en modo comercial. Utilizar baja lógica desde Administración | Operación heredada |
 | 6 | `GET /admin/vehiculos/{v}/estado` | v | U | 200 · Estado o null | 404 inexistente. null si no hay estado persistido | Monitoreo al consultar o reconectar |
-| 7 | `GET /admin/vehiculos/{v}/comandos` | v | U | 200 · [Comando] | 404 inexistente. La lista incluye activos e inactivos | Control habilita comandos vigentes |
+| 7 | `GET /admin/vehiculos/{v}/comandos` | v | A/U | 200 · [Comando] | 404 inexistente. La lista incluye activos e inactivos; U exige propiedad vigente | Administración edita movimientos; Control habilita comandos vigentes |
 | 8 | `POST /admin/vehiculos/{v}/comandos` | v + Comando alta | A | 201 · Comando | 404 unidad inexistente. 409 por código o nombre duplicado o control ocupado | Mantenimiento técnico |
 | 9 | `PUT /admin/vehiculos/{v}/comandos/{c}` | v, c + Comando edición | A | 200 · Comando | 404 comando fuera de la unidad. 409 por duplicado o control ocupado | Mantenimiento técnico |
 | 10 | `DELETE /admin/vehiculos/{v}/comandos/{c}` | v, c | A | 204 | 404 relación inexistente. 409 por referencias o control ocupado | Mantenimiento de catálogo |

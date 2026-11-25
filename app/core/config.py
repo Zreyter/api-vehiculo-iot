@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     mysql_database: str = "vehiculo_iot"
     mysql_ssl_ca: str = ""
     exhibicion_habilitada: bool = False
+    exhibicion_unidades_compartidas: list[int] = Field(default_factory=list)
     comercial_habilitado: bool = False
     control_token: SecretStr = SecretStr("")
     device_token: SecretStr = SecretStr("")
